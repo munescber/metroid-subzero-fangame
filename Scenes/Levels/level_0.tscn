@@ -1,0 +1,73 @@
+[gd_scene load_steps=4 format=3 uid="uid://6uqglp8yqymu"]
+
+[ext_resource type="Texture2D" uid="uid://wtndjvafjymr" path="res://Treasure Hunters/Treasure Hunters/Merchant Ship/Sprites/Barrel/Idle/1.png" id="1_2e8o5"]
+[ext_resource type="PackedScene" uid="uid://j5gmhjrkkpwd" path="res://Scenes/Player/player.tscn" id="2_hfeaq"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_pvv5k"]
+size = Vector2(49.7344, 46.0313)
+
+[node name="test_01" type="Node2D"]
+position = Vector2(61, 182)
+
+[node name="Platform2" type="StaticBody2D" parent="."]
+position = Vector2(74, -7)
+
+[node name="1" type="Sprite2D" parent="Platform2"]
+position = Vector2(-42.9375, 2.9375)
+scale = Vector2(2.14904, 1.79583)
+texture = ExtResource("1_2e8o5")
+
+[node name="BarrelPlatform_C" type="CollisionShape2D" parent="Platform2"]
+position = Vector2(-43.8672, 4.01563)
+shape = SubResource("RectangleShape2D_pvv5k")
+
+[node name="Platform3" type="StaticBody2D" parent="."]
+position = Vector2(125, -7)
+
+[node name="1" type="Sprite2D" parent="Platform3"]
+position = Vector2(-42.9375, 2.9375)
+scale = Vector2(2.14904, 1.79583)
+texture = ExtResource("1_2e8o5")
+
+[node name="BarrelPlatform_C" type="CollisionShape2D" parent="Platform3"]
+position = Vector2(-43.8672, 4.01563)
+shape = SubResource("RectangleShape2D_pvv5k")
+
+[node name="Platform3" type="StaticBody2D" parent="Platform3"]
+position = Vector2(125, -7)
+
+[node name="1" type="Sprite2D" parent="Platform3/Platform3"]
+position = Vector2(-42.9375, 2.9375)
+scale = Vector2(2.14904, 1.79583)
+texture = ExtResource("1_2e8o5")
+
+[node name="BarrelPlatform_C" type="CollisionShape2D" parent="Platform3/Platform3"]
+position = Vector2(-43.8672, 4.01563)
+shape = SubResource("RectangleShape2D_pvv5k")
+
+[node name="Platform3" type="StaticBody2D" parent="Platform3/Platform3"]
+position = Vector2(92, 205)
+
+[node name="1" type="Sprite2D" parent="Platform3/Platform3/Platform3"]
+position = Vector2(-42.9375, 2.9375)
+scale = Vector2(2.14904, 1.79583)
+texture = ExtResource("1_2e8o5")
+
+[node name="BarrelPlatform_C" type="CollisionShape2D" parent="Platform3/Platform3/Platform3"]
+position = Vector2(-43.8672, 4.01563)
+shape = SubResource("RectangleShape2D_pvv5k")
+
+[node name="Platform3" type="StaticBody2D" parent="Platform3/Platform3/Platform3"]
+position = Vector2(86, -118)
+
+[node name="1" type="Sprite2D" parent="Platform3/Platform3/Platform3/Platform3"]
+position = Vector2(-42.9375, 2.9375)
+scale = Vector2(2.14904, 1.79583)
+texture = ExtResource("1_2e8o5")
+
+[node name="BarrelPlatform_C" type="CollisionShape2D" parent="Platform3/Platform3/Platform3/Platform3"]
+position = Vector2(-43.8672, 4.01563)
+shape = SubResource("RectangleShape2D_pvv5k")
+
+[node name="player" parent="." instance=ExtResource("2_hfeaq")]
+position = Vector2(48, -53)

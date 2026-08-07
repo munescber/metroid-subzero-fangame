@@ -1,0 +1,63 @@
+[gd_scene load_steps=9 format=3 uid="uid://dri1mvk6spx6b"]
+
+[ext_resource type="Texture2D" uid="uid://p4e73jtobusl" path="res://spritesheets/rhinobug_spritesheet.png" id="1_1f76r"]
+[ext_resource type="Script" path="res://Scripts/Enemies/rhinobug.gd" id="1_6ex11"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_53cj2"]
+size = Vector2(16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_r1he5"]
+atlas = ExtResource("1_1f76r")
+region = Rect2(0, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_q3rd6"]
+atlas = ExtResource("1_1f76r")
+region = Rect2(0, 16, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_llnr5"]
+atlas = ExtResource("1_1f76r")
+region = Rect2(0, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_62xd3"]
+atlas = ExtResource("1_1f76r")
+region = Rect2(0, 16, 16, 16)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_1rxd2"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_r1he5")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_q3rd6")
+}],
+"loop": true,
+"name": &"idle",
+"speed": 3.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_llnr5")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_62xd3")
+}],
+"loop": true,
+"name": &"walk",
+"speed": 3.0
+}]
+
+[node name="rhinobug" type="CharacterBody2D"]
+script = ExtResource("1_6ex11")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_53cj2")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+sprite_frames = SubResource("SpriteFrames_1rxd2")
+animation = &"idle"
+
+[node name="Timer" type="Timer" parent="."]
+one_shot = true
+
+[connection signal="timeout" from="Timer" to="." method="_on_timer_timeout"]
