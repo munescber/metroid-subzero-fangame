@@ -1,6 +1,6 @@
 [gd_scene load_steps=9 format=3 uid="uid://dri1mvk6spx6b"]
 
-[ext_resource type="Texture2D" uid="uid://p4e73jtobusl" path="res://spritesheets/rhinobug_spritesheet.png" id="1_1f76r"]
+[ext_resource type="Texture2D" uid="uid://p4e73jtobusl" path="res://Spritesheets/rhinobug_spritesheet.png" id="1_1f76r"]
 [ext_resource type="Script" path="res://Scripts/Enemies/rhinobug.gd" id="1_6ex11"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_53cj2"]
