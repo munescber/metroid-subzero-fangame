@@ -1,22 +1,7 @@
-[gd_scene load_steps=11 format=3 uid="uid://cir4pmo4aqvq0"]
+[gd_scene load_steps=7 format=3 uid="uid://cir4pmo4aqvq0"]
 
 [ext_resource type="Texture2D" uid="uid://bpv5xgmfqxp2a" path="res://Spritesheets/phantoon.png" id="1_4r5wi"]
 [ext_resource type="Script" path="res://Scripts/Enemies/phantoon.gd" id="script_phantoon"]
-
-[sub_resource type="CompressedTexture2D" id="CompressedTexture2D_vf8gb"]
-load_path = "res://.godot/imported/phantoon.png-5d7848fe659a629e77608944faf866c5.ctex"
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_taira"]
-atlas = SubResource("CompressedTexture2D_vf8gb")
-region = Rect2(0, 0, 32, 48)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_0uvad"]
-atlas = SubResource("CompressedTexture2D_vf8gb")
-region = Rect2(32, 0, 32, 48)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_1tmtw"]
-atlas = SubResource("CompressedTexture2D_vf8gb")
-region = Rect2(0, 48, 32, 48)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_hdtoa"]
 atlas = ExtResource("1_4r5wi")
@@ -34,20 +19,6 @@ region = Rect2(0, 48, 32, 48)
 animations = [{
 "frames": [{
 "duration": 1.0,
-"texture": SubResource("AtlasTexture_taira")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_0uvad")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_1tmtw")
-}],
-"loop": true,
-"name": &"idle",
-"speed": 2.0
-}, {
-"frames": [{
-"duration": 1.0,
 "texture": SubResource("AtlasTexture_hdtoa")
 }, {
 "duration": 1.0,
@@ -60,7 +31,7 @@ animations = [{
 "texture": SubResource("AtlasTexture_0bnid")
 }],
 "loop": true,
-"name": &"new_animation",
+"name": &"idle",
 "speed": 2.0
 }]
 
@@ -70,7 +41,6 @@ script = ExtResource("script_phantoon")
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
 sprite_frames = SubResource("SpriteFrames_aavg1")
 animation = &"idle"
-frame_progress = 0.70207
 
 [node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="."]
 polygon = PackedVector2Array(0, -24, 12, -18, 15, -4, 9, 3, 10, 16, 0, 15, -11, 16, -10, 3, -16, -4, -13, -18)

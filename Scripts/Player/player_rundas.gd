@@ -6,12 +6,34 @@ extends CharacterBody2D
 
 const MOVE_SPEED := 75.0
 const JUMP_FORCE := -300.0
+const SHOOT_COOLDOWN := 0.20
+const BULLET_OFFSET := Vector2(12, 0)
+const AIM_UP_ANGLE := PI/4
+const AIM_DOWN_ANGLE := -PI/4
 
 # Gravity defined in Project Settings
 var gravity: float = ProjectSettings.get_setting("physics/2d/default_gravity")
 
 # Reference to the AnimatedSprite2D node
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
+@onready var muzzle = $Muzzle
+
+var shoot_timer: float = 0.0
+var bullet_scene: PackedScene = preload("res://Scenes/Player/bullet.tscn")
+var aim_angle: float = 0.0
+
+func get_aim_direction() -> Vector2:
+	# horizontal is -1 when facing left, +1 when facing right
+	var horizontal: float = -1.0 if sprite.flip_h else 1.0
+	var vertical: float = 0.0
+
+	if Input.is_action_pressed("up"):
+		vertical = -1.0
+	elif Input.is_action_pressed("down") and not is_on_floor():
+		vertical = 1.0
+
+	var dir := Vector2(horizontal, vertical)
+	return dir.normalized()
 
 
 # ==================================================
@@ -20,6 +42,7 @@ var gravity: float = ProjectSettings.get_setting("physics/2d/default_gravity")
 
 func _ready():
 	sprite.play("idle")
+	_update_muzzle_position()
 	
 
 # ==================================================
@@ -30,9 +53,24 @@ func _physics_process(delta):
 	apply_gravity(delta)
 	handle_jump()
 	handle_horizontal_movement()
+	handle_aim()
+	handle_shoot(delta)
 	update_animation()
 
 	move_and_slide()
+
+
+func handle_shoot(delta):
+	shoot_timer = max(shoot_timer - delta, 0.0)
+
+	if Input.is_action_just_pressed("shoot") and shoot_timer <= 0.0:
+		shoot_timer = SHOOT_COOLDOWN
+		var final_dir: Vector2 = get_aim_direction()
+		var bullet = bullet_scene.instantiate()
+		bullet.start(final_dir, self)
+		# spawn slightly ahead so it doesn't immediately collide with player
+		bullet.global_position = muzzle.global_position + final_dir * 6
+		get_parent().add_child(bullet)
 
 
 # ==================================================
@@ -58,9 +96,26 @@ func handle_horizontal_movement():
 		# Flip the sprite depending on movement direction.
 		# Assumes the sprite faces RIGHT by default.
 		sprite.flip_h = direction < 0
+		_update_muzzle_position()
 
 	else:
 		velocity.x = move_toward(velocity.x, 0, MOVE_SPEED)
+
+
+func _update_muzzle_position() -> void:
+	var offset_x: float = abs(muzzle.position.x)
+	muzzle.position.x = -offset_x if sprite.flip_h else offset_x
+	# adjust muzzle rotation to match facing and aim
+	var dir := get_aim_direction()
+	aim_angle = dir.angle()
+	muzzle.rotation = aim_angle
+
+
+func handle_aim() -> void:
+	# Update aim angle and muzzle rotation from vector direction
+	var dir := get_aim_direction()
+	aim_angle = dir.angle()
+	muzzle.rotation = aim_angle
 
 
 # ==================================================
