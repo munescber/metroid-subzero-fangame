@@ -7,7 +7,8 @@ extends CharacterBody2D
 const SPEED := 40.0
 
 # Node that contains all patrol points (Marker2D nodes).
-@export var patrol_points: Node2D
+# Export untyped so the inspector can store a NodePath or a Node reference.
+@export var patrol_points
 
 # Gravity defined in Project Settings.
 var gravity: float = ProjectSettings.get_setting("physics/2d/default_gravity")
