@@ -1,7 +1,9 @@
-[gd_scene load_steps=9 format=3 uid="uid://dri1mvk6spx6b"]
+[gd_scene format=3 uid="uid://dri1mvk6spx6b"]
 
 [ext_resource type="Texture2D" uid="uid://p4e73jtobusl" path="res://Spritesheets/rhinobug_spritesheet.png" id="1_1f76r"]
-[ext_resource type="Script" path="res://Scripts/Enemies/rhinobug.gd" id="1_6ex11"]
+[ext_resource type="Script" uid="uid://dhu665esqlo7i" path="res://Scripts/Enemies/rhinobug.gd" id="1_6ex11"]
+[ext_resource type="Script" uid="uid://bl1ty1jxui1l4" path="res://Scripts/Common/hitbox.gd" id="2_hitbox"]
+[ext_resource type="Script" uid="uid://ds8luj34xgumv" path="res://Scripts/Common/hurtbox.gd" id="3_hurtbox"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_53cj2"]
 size = Vector2(16, 16)
@@ -31,7 +33,7 @@ animations = [{
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_q3rd6")
 }],
-"loop": true,
+"loop": 1,
 "name": &"idle",
 "speed": 3.0
 }, {
@@ -42,22 +44,36 @@ animations = [{
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_62xd3")
 }],
-"loop": true,
+"loop": 1,
 "name": &"walk",
 "speed": 3.0
 }]
 
-[node name="rhinobug" type="CharacterBody2D"]
+[node name="rhinobug" type="CharacterBody2D" unique_id=2008599233]
 script = ExtResource("1_6ex11")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=760099533]
+visible = false
 shape = SubResource("RectangleShape2D_53cj2")
 
-[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1383360540]
 sprite_frames = SubResource("SpriteFrames_1rxd2")
 animation = &"idle"
 
-[node name="Timer" type="Timer" parent="."]
+[node name="ContactDamage" type="Area2D" parent="." unique_id=1956925268]
+script = ExtResource("2_hitbox")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ContactDamage" unique_id=251589134]
+shape = SubResource("RectangleShape2D_53cj2")
+
+[node name="Hurtbox" type="Area2D" parent="." unique_id=1786950687]
+visible = false
+script = ExtResource("3_hurtbox")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox" unique_id=1218874499]
+shape = SubResource("RectangleShape2D_53cj2")
+
+[node name="Timer" type="Timer" parent="." unique_id=602359170]
 one_shot = true
 
 [connection signal="timeout" from="Timer" to="." method="_on_timer_timeout"]

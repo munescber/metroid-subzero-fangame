@@ -7,7 +7,8 @@ extends CharacterBody2D
 const SPEED := 40.0
 
 # Node that contains all patrol points (Marker2D nodes).
-@export var patrol_points: Node2D
+# Export as NodePath (inspector will store a NodePath to the child).
+@export var patrol_points: NodePath = NodePath("")
 
 # Gravity defined in Project Settings.
 var gravity: float = ProjectSettings.get_setting("physics/2d/default_gravity")
@@ -17,6 +18,7 @@ var gravity: float = ProjectSettings.get_setting("physics/2d/default_gravity")
 # ==================================================
 
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
+@onready var timer: Timer = $Timer
 
 # ==================================================
 # Patrol Variables
@@ -39,17 +41,34 @@ var direction := 1
 func _ready():
 	sprite.play("walk")
 
+	# Phase 1: add HealthComponent at runtime
+	const HealthComponent = preload("res://Scripts/Common/health_component.gd")
+	health_comp = HealthComponent.new()
+	add_child(health_comp)
+	health_comp.max_health = 2
+	health_comp.connect("damaged", Callable(self, "_on_health_damaged"))
+	health_comp.connect("died", Callable(self, "_on_health_died"))
+
+	# Resolve the exported NodePath to an actual node reference for runtime use.
+	var patrol_points_node: Node = null
+	if patrol_points != NodePath(""):
+		if has_node(patrol_points):
+			patrol_points_node = get_node(patrol_points)
+	# fallback: try to find a child named PatrolPoints
+	if patrol_points_node == null and has_node("PatrolPoints"):
+		patrol_points_node = $PatrolPoints
+
 	# Check if PatrolPoints was assigned.
-	if patrol_points == null:
+	if patrol_points_node == null:
 		push_error("Enemy: PatrolPoints node not assigned.")
 		print("patrol_points is NULL")
 		return
 
-	print("Patrol node found:", patrol_points.name)
-	print("Children found:", patrol_points.get_child_count())
+	print("Patrol node found:", patrol_points_node.name)
+	print("Children found:", patrol_points_node.get_child_count())
 
 	# Read every Marker2D.
-	for child in patrol_points.get_children():
+	for child in patrol_points_node.get_children():
 
 		print("Child:", child.name, " Type:", child.get_class())
 
@@ -63,6 +82,20 @@ func _ready():
 		push_error("Enemy needs at least two patrol points.")
 		return
 
+	# contact area (Hitbox) monitoring is handled by Hitbox script
+
+	# state
+	is_dying = false
+
+	# configure hitbox properties
+	if has_node("ContactDamage"):
+		var hb = $ContactDamage
+		if hb is Area2D and hb.has_method("set"):
+			hb.set("damage", 1)
+			hb.set("one_shot", false)
+			hb.set("source", self)
+
+
 
 
 # ==================================================
@@ -75,6 +108,7 @@ func _physics_process(delta):
 	patrol()
 
 	move_and_slide()
+
 
 
 # ==================================================
@@ -113,3 +147,45 @@ func patrol():
 
 	# Face the movement direction.
 	sprite.flip_h = direction > 0
+
+
+### --- Phase 1: Damage shim and handlers ---
+var health_comp = null
+
+var is_dying: bool = false
+
+# contact handled via Hitbox script on ContactDamage
+
+func _on_timer_timeout() -> void:
+	# reset sprite modulation after damage flash
+	sprite.modulate = Color(1,1,1,1)
+
+	if is_dying:
+		queue_free()
+
+
+func take_damage(amount: int, source = null) -> void:
+	if health_comp:
+		health_comp.take_damage(amount)
+
+func _on_health_damaged(amount: int, new_health: int) -> void:
+	print("Rhinobug damaged:", amount, "->", new_health)
+	# flash red briefly
+	sprite.modulate = Color(1,0.5,0.5,1)
+	if timer:
+		timer.start(0.12)
+
+func _on_health_died() -> void:
+	print("Rhinobug died")
+	# play death effect then remove
+	is_dying = true
+	# disable collisions
+	for child in get_children():
+		if child is CollisionShape2D:
+			child.set_deferred("disabled", true)
+		elif child is Area2D:
+			child.set_deferred("monitoring", false)
+	if timer:
+		timer.start(0.18)
+	else:
+		queue_free()
