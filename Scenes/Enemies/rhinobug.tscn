@@ -60,7 +60,6 @@ sprite_frames = SubResource("SpriteFrames_1rxd2")
 animation = &"idle"
 
 [node name="ContactDamage" type="Area2D" parent="."]
-[node name="ContactDamage" type="Area2D" parent="."]
 script = ExtResource("2_hitbox")
 monitoring = true
 
@@ -74,9 +73,6 @@ monitoring = true
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
 shape = SubResource("RectangleShape2D_53cj2")
 
-[connection signal="body_entered" from="ContactDamage" to="." method="_on_contact_body_entered"]
-
 [node name="Timer" type="Timer" parent="."]
 one_shot = true
-
 [connection signal="timeout" from="Timer" to="." method="_on_timer_timeout"]

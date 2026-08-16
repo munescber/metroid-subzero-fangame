@@ -77,6 +77,14 @@ func _ready():
 	# state
 	is_dying = false
 
+	# configure hitbox properties
+	if has_node("ContactDamage"):
+		var hb = $ContactDamage
+		if hb is Area2D and hb.has_method("set"):
+			hb.set("damage", 1)
+			hb.set("one_shot", false)
+			hb.set("source", self)
+
 
 
 
@@ -136,10 +144,7 @@ var health_comp = null
 
 var is_dying: bool = false
 
-func _on_contact_body_entered(body: Node) -> void:
-	# damage player on contact (only when entering)
-	if body and body.has_method("take_damage") and not is_dying:
-		body.call("take_damage", 1, self)
+# contact handled via Hitbox script on ContactDamage
 
 func _on_timer_timeout() -> void:
 	# reset sprite modulation after damage flash
