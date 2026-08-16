@@ -78,7 +78,8 @@ func _ready():
 
 	# save original sprite modulate for blinking
 	_original_modulate = sprite.modulate
-	
+
+	# Hurtbox signals are handled by the Hurtbox API (no fallback hookup)
 
 # ==================================================
 # Main Physics Loop
@@ -246,3 +247,4 @@ func _on_health_died() -> void:
 	set_physics_process(false)
 	velocity = Vector2.ZERO
 	# optional: play death animation or notify game manager
+# End of player_rundas.gd
