@@ -48,6 +48,19 @@ func _ready():
 	health_comp.connect("damaged", Callable(self, "_on_health_damaged"))
 	health_comp.connect("died", Callable(self, "_on_health_died"))
 
+	# Ensure patrol_points can be resolved whether the scene override stored a NodePath
+	# or a direct Node reference. Also fallback to a child named "PatrolPoints".
+	if patrol_points != null:
+		# If inspector stored a NodePath, resolve it to the actual node.
+		if patrol_points is NodePath:
+			if has_node(patrol_points):
+				patrol_points = get_node(patrol_points)
+			else:
+				patrol_points = null
+	# fallback: try to find a child named PatrolPoints
+	if patrol_points == null and has_node("PatrolPoints"):
+		patrol_points = $PatrolPoints
+
 	# Check if PatrolPoints was assigned.
 	if patrol_points == null:
 		push_error("Enemy: PatrolPoints node not assigned.")
