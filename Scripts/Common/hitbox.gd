@@ -11,6 +11,10 @@ func _ready() -> void:
     connect("body_entered", Callable(self, "_on_body_entered"))
 
 func _on_area_entered(area: Area2D) -> void:
+    # Ignore overlaps with our own entity's areas (prevent self-hits)
+    if area and area.get_parent() == get_parent():
+        return
+
     # Prefer Hurtbox.receive_hit when available
     if area and area.has_method("receive_hit"):
         area.call("receive_hit", damage, source)
@@ -18,6 +22,10 @@ func _on_area_entered(area: Area2D) -> void:
             queue_free()
 
 func _on_body_entered(body: Node) -> void:
+    # Ignore hits on our own parent (prevent self-hits)
+    if body and body == get_parent():
+        return
+
     # If the body has a child Hurtbox, use it
     if body and body.has_node("Hurtbox"):
         var hb = body.get_node("Hurtbox")

@@ -15,6 +15,10 @@ func take_damage(amount: int) -> void:
     if amount <= 0:
         return
 
+    # If already dead, ignore further damage
+    if current_health == 0:
+        return
+
     current_health = max(current_health - amount, 0)
     emit_signal("damaged", amount, current_health)
 

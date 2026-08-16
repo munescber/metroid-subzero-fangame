@@ -166,8 +166,10 @@ func _on_health_died() -> void:
 	is_dying = true
 	# disable collisions
 	for child in get_children():
-		if child is CollisionShape2D or child is Area2D:
+		if child is CollisionShape2D:
 			child.set_deferred("disabled", true)
+		elif child is Area2D:
+			child.set_deferred("monitoring", false)
 	if timer:
 		timer.start(0.18)
 	else:
