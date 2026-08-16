@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://crgc76ccyqceh" path="res://Scripts/Player/player_rundas.gd" id="1_6t2vb"]
 [ext_resource type="Texture2D" uid="uid://tn06obry0yos" path="res://Rhundas Frames/idle/rhundas_idle_spritesheet.png" id="2_dv71o"]
 [ext_resource type="Texture2D" uid="uid://be8gf5e0q2swv" path="res://Rhundas Frames/idle/rhundas_spritesheet.png" id="3_r4ljw"]
-[ext_resource type="Script" uid="uid://hurtboxscript" path="res://Scripts/Common/hurtbox.gd" id="4_hurtbox"]
+[ext_resource type="Script" path="res://Scripts/Common/hurtbox.gd" id="4_hurtbox"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_kymcg"]
 size = Vector2(9, 15)
