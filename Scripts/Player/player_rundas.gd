@@ -221,7 +221,7 @@ func take_damage(amount: int, source = null) -> void:
 
 	# apply knockback using source if available
 	if source and source is Node2D:
-		var dir := (global_position - source.global_position).normalized()
+		var dir: Vector2 = (global_position - source.global_position).normalized()
 		velocity.x = dir.x * knockback_x
 		velocity.y = -abs(knockback_y)
 	else:
