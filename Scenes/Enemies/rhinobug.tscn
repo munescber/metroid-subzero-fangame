@@ -2,6 +2,8 @@
 
 [ext_resource type="Texture2D" uid="uid://p4e73jtobusl" path="res://Spritesheets/rhinobug_spritesheet.png" id="1_1f76r"]
 [ext_resource type="Script" path="res://Scripts/Enemies/rhinobug.gd" id="1_6ex11"]
+[ext_resource type="Script" uid="uid://hitboxscript" path="res://Scripts/Common/hitbox.gd" id="2_hitbox"]
+[ext_resource type="Script" uid="uid://hurtboxscript" path="res://Scripts/Common/hurtbox.gd" id="3_hurtbox"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_53cj2"]
 size = Vector2(16, 16)
@@ -56,6 +58,23 @@ shape = SubResource("RectangleShape2D_53cj2")
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
 sprite_frames = SubResource("SpriteFrames_1rxd2")
 animation = &"idle"
+
+[node name="ContactDamage" type="Area2D" parent="."]
+[node name="ContactDamage" type="Area2D" parent="."]
+script = ExtResource("2_hitbox")
+monitoring = true
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ContactDamage"]
+shape = SubResource("RectangleShape2D_53cj2")
+
+[node name="Hurtbox" type="Area2D" parent="."]
+script = ExtResource("3_hurtbox")
+monitoring = true
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+shape = SubResource("RectangleShape2D_53cj2")
+
+[connection signal="body_entered" from="ContactDamage" to="." method="_on_contact_body_entered"]
 
 [node name="Timer" type="Timer" parent="."]
 one_shot = true

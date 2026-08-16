@@ -17,6 +17,7 @@ var gravity: float = ProjectSettings.get_setting("physics/2d/default_gravity")
 # ==================================================
 
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
+@onready var timer: Timer = $Timer
 
 # ==================================================
 # Patrol Variables
@@ -38,6 +39,14 @@ var direction := 1
 
 func _ready():
 	sprite.play("walk")
+
+	# Phase 1: add HealthComponent at runtime
+	const HealthComponent = preload("res://Scripts/Common/health_component.gd")
+	health_comp = HealthComponent.new()
+	add_child(health_comp)
+	health_comp.max_health = 2
+	health_comp.connect("damaged", Callable(self, "_on_health_damaged"))
+	health_comp.connect("died", Callable(self, "_on_health_died"))
 
 	# Check if PatrolPoints was assigned.
 	if patrol_points == null:
@@ -63,6 +72,12 @@ func _ready():
 		push_error("Enemy needs at least two patrol points.")
 		return
 
+	# contact area (Hitbox) monitoring is handled by Hitbox script
+
+	# state
+	is_dying = false
+
+
 
 
 # ==================================================
@@ -75,6 +90,7 @@ func _physics_process(delta):
 	patrol()
 
 	move_and_slide()
+
 
 
 # ==================================================
@@ -113,3 +129,46 @@ func patrol():
 
 	# Face the movement direction.
 	sprite.flip_h = direction > 0
+
+
+### --- Phase 1: Damage shim and handlers ---
+var health_comp = null
+
+var is_dying: bool = false
+
+func _on_contact_body_entered(body: Node) -> void:
+	# damage player on contact (only when entering)
+	if body and body.has_method("take_damage") and not is_dying:
+		body.call("take_damage", 1, self)
+
+func _on_timer_timeout() -> void:
+	# reset sprite modulation after damage flash
+	sprite.modulate = Color(1,1,1,1)
+
+	if is_dying:
+		queue_free()
+
+
+func take_damage(amount: int, source = null) -> void:
+	if health_comp:
+		health_comp.take_damage(amount)
+
+func _on_health_damaged(amount: int, new_health: int) -> void:
+	print("Rhinobug damaged:", amount, "->", new_health)
+	# flash red briefly
+	sprite.modulate = Color(1,0.5,0.5,1)
+	if timer:
+		timer.start(0.12)
+
+func _on_health_died() -> void:
+	print("Rhinobug died")
+	# play death effect then remove
+	is_dying = true
+	# disable collisions
+	for child in get_children():
+		if child is CollisionShape2D or child is Area2D:
+			child.set_deferred("disabled", true)
+	if timer:
+		timer.start(0.18)
+	else:
+		queue_free()
