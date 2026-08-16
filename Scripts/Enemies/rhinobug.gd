@@ -7,8 +7,8 @@ extends CharacterBody2D
 const SPEED := 40.0
 
 # Node that contains all patrol points (Marker2D nodes).
-# Export untyped so the inspector can store a NodePath or a Node reference.
-@export var patrol_points
+# Export as NodePath (inspector will store a NodePath to the child).
+@export var patrol_points: NodePath = NodePath("")
 
 # Gravity defined in Project Settings.
 var gravity: float = ProjectSettings.get_setting("physics/2d/default_gravity")
@@ -49,30 +49,26 @@ func _ready():
 	health_comp.connect("damaged", Callable(self, "_on_health_damaged"))
 	health_comp.connect("died", Callable(self, "_on_health_died"))
 
-	# Ensure patrol_points can be resolved whether the scene override stored a NodePath
-	# or a direct Node reference. Also fallback to a child named "PatrolPoints".
-	if patrol_points != null:
-		# If inspector stored a NodePath, resolve it to the actual node.
-		if patrol_points is NodePath:
-			if has_node(patrol_points):
-				patrol_points = get_node(patrol_points)
-			else:
-				patrol_points = null
+	# Resolve the exported NodePath to an actual node reference for runtime use.
+	var patrol_points_node: Node = null
+	if patrol_points != NodePath(""):
+		if has_node(patrol_points):
+			patrol_points_node = get_node(patrol_points)
 	# fallback: try to find a child named PatrolPoints
-	if patrol_points == null and has_node("PatrolPoints"):
-		patrol_points = $PatrolPoints
+	if patrol_points_node == null and has_node("PatrolPoints"):
+		patrol_points_node = $PatrolPoints
 
 	# Check if PatrolPoints was assigned.
-	if patrol_points == null:
+	if patrol_points_node == null:
 		push_error("Enemy: PatrolPoints node not assigned.")
 		print("patrol_points is NULL")
 		return
 
-	print("Patrol node found:", patrol_points.name)
-	print("Children found:", patrol_points.get_child_count())
+	print("Patrol node found:", patrol_points_node.name)
+	print("Children found:", patrol_points_node.get_child_count())
 
 	# Read every Marker2D.
-	for child in patrol_points.get_children():
+	for child in patrol_points_node.get_children():
 
 		print("Child:", child.name, " Type:", child.get_class())
 

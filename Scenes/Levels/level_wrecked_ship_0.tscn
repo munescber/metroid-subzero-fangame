@@ -2,6 +2,7 @@
 
 [ext_resource type="Texture2D" uid="uid://bmg2gysobj2qf" path="res://Tilesets/wrecked_ship.png" id="1_7sarq"]
 [ext_resource type="PackedScene" uid="uid://j5gmhjrkkpwd" path="res://Scenes/Player/player.tscn" id="2_6rmbd"]
+[ext_resource type="PackedScene" uid="uid://dri1mvk6spx6b" path="res://Scenes/Enemies/rhinobug.tscn" id="3_p28h1"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_6rmbd"]
 texture = ExtResource("1_7sarq")
@@ -78,3 +79,15 @@ tile_set = SubResource("TileSet_gbtge")
 
 [node name="player_rundas" parent="." unique_id=146499936 instance=ExtResource("2_6rmbd")]
 position = Vector2(21, -94)
+
+[node name="rhinobug" parent="." unique_id=1191703244 node_paths=PackedStringArray("patrol_points") instance=ExtResource("3_p28h1")]
+position = Vector2(82, -60)
+patrol_points = NodePath("PatrolPoints")
+
+[node name="PatrolPoints" type="Node2D" parent="rhinobug" unique_id=1025024183]
+
+[node name="PointA" type="Marker2D" parent="rhinobug/PatrolPoints" unique_id=50480423]
+position = Vector2(-38, -3)
+
+[node name="PointB" type="Marker2D" parent="rhinobug/PatrolPoints" unique_id=499679023]
+position = Vector2(41, -3)
