@@ -50,6 +50,8 @@ animations = [{
 }]
 
 [node name="rhinobug" type="CharacterBody2D" unique_id=2008599233]
+collision_layer = 4
+collision_mask = 1
 script = ExtResource("1_6ex11")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=760099533]
@@ -61,6 +63,8 @@ sprite_frames = SubResource("SpriteFrames_1rxd2")
 animation = &"idle"
 
 [node name="ContactDamage" type="Area2D" parent="." unique_id=1956925268]
+collision_layer = 8
+collision_mask = 16
 script = ExtResource("2_hitbox")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="ContactDamage" unique_id=251589134]
@@ -68,6 +72,8 @@ shape = SubResource("RectangleShape2D_53cj2")
 
 [node name="Hurtbox" type="Area2D" parent="." unique_id=1786950687]
 visible = false
+collision_layer = 16
+collision_mask = 8
 script = ExtResource("3_hurtbox")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox" unique_id=1218874499]

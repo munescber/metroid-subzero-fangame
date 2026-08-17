@@ -25,6 +25,14 @@ window/size/viewport_width=854
 window/size/viewport_height=480
 window/stretch/mode="viewport"
 
+[layer_names]
+
+2d_physics/layer_1="World"
+2d_physics/layer_2="PlayerBody"
+2d_physics/layer_3="EnemyBody"
+2d_physics/layer_4="Hitbox"
+2d_physics/layer_5="Hurtbox"
+
 [input]
 
 left={

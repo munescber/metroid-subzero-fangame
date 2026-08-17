@@ -80,9 +80,8 @@ layer_0/tile_data = PackedInt32Array(65536, 131074, 0, 65537, 131074, 0, 65538, 
 [node name="player_rundas" parent="." unique_id=1986198901 instance=ExtResource("1_gtt1v")]
 position = Vector2(92, 42)
 
-[node name="rhinobug" parent="." unique_id=689783958 node_paths=PackedStringArray("patrol_points") instance=ExtResource("4_a7sir")]
+[node name="rhinobug" parent="." unique_id=689783958 instance=ExtResource("4_a7sir")]
 position = Vector2(160, 14)
-patrol_points = NodePath("PatrolPoints")
 
 [node name="PatrolPoints" type="Node2D" parent="rhinobug" unique_id=575068660]
 

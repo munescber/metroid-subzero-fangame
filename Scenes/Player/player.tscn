@@ -84,6 +84,8 @@ animations = [{
 
 [node name="player_rundas" type="CharacterBody2D" unique_id=437530251]
 position = Vector2(1, 0)
+collision_layer = 2
+collision_mask = 1
 script = ExtResource("1_6t2vb")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=351996993]
@@ -103,6 +105,8 @@ sprite_frames = SubResource("SpriteFrames_6ce0r")
 animation = &"idle"
 
 [node name="Hurtbox" type="Area2D" parent="." unique_id=981234567]
+collision_layer = 16
+collision_mask = 8
 script = ExtResource("4_hurtbox")
 monitoring = true
 

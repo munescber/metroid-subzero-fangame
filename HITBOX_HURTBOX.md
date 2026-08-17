@@ -2,55 +2,113 @@ Hitbox / Hurtbox Guide
 
 Overview
 --------
-This project now uses a clear separation between physics collision shapes and combat shapes:
+This project uses a clear separation between physics collision and combat collision:
 
-- Physics `CollisionShape2D` (on `CharacterBody2D`): used for movement, environment collisions, and physics resolution.
-- `Hurtbox` (`Area2D`): persistent area that represents where an entity can be damaged.
-- `Hitbox` (`Area2D`): transient or persistent area that deals damage (melee swings, contact attacks, traps).
+- Physics `CollisionShape2D` on `CharacterBody2D`: used for movement, wall resolution, and environment collisions.
+- `Hurtbox` (`Area2D`): the damageable region of an entity. It receives hits and forwards them to the owning entity.
+- `Hitbox` (`Area2D`): the damaging region of an attack. It applies damage when it overlaps a `Hurtbox`.
 
-Files added
+This repo-specific pattern keeps the movement body and the damage body separate, which avoids accidental physics interference.
+
+Core files
 -----------
-- `Scripts/Common/health_component.gd` — reusable health component (signals: `damaged(amount, new_health)`, `died()`). Handles health state only.
-- `Scripts/Common/hurtbox.gd` — `Hurtbox` Area2D component; owns `receive_hit(damage, source)` which forwards damage to the entity owner.
-- `Scripts/Common/hitbox.gd` — `Hitbox` Area2D component; configured with `damage`, `one_shot`, `source`. Applies damage to `Hurtbox` (preferred) or falls back to calling `take_damage` on bodies.
+- `Scripts/Common/health_component.gd` — reusable health state for any actor. Emits `damaged(amount, new_health)` and `died()`.
+- `Scripts/Common/hurtbox.gd` — forwards `receive_hit(damage, source)` to the owning entity's `take_damage(amount, source)`.
+- `Scripts/Common/hitbox.gd` — shared contact hitbox logic with `damage`, `one_shot`, and `source` properties.
+- `Scripts/Player/player_rundas.gd` — player-specific `take_damage()` shim, invulnerability, knockback, and death handling.
+- `Scripts/Enemies/rhinobug.gd` — enemy health setup, contact damage config, and death visuals/cleanup.
+- `Scripts/Player/bullet.gd` — projectile physics collision is kept on the `CharacterBody2D`, while a child `Hitbox` Area2D handles combat overlap.
 
-How the interaction flows
--------------------------
-1. Attack activates a `Hitbox` (e.g., enable/instantiate it for the attack window) with `damage` and `source` set.
-2. When the `Hitbox` overlaps a `Hurtbox`, the `Hurtbox.receive_hit(damage, source)` is called.
-3. `Hurtbox.receive_hit` forwards to its owning entity's `take_damage(damage, source)` shim.
-4. The entity `take_damage` shim enforces entity-specific rules (player invulnerability, knockback), then delegates to `HealthComponent.take_damage(amount)`.
-5. `HealthComponent` reduces health, clamps it, emits `damaged` and `died` signals.
-6. Entity scripts listen to `damaged` and `died` to drive visuals, sounds, knockback, and death behavior.
+Current project behavior
+------------------------
+The repo currently follows this flow:
+
+1. The physical body (`CharacterBody2D`) handles movement and wall collisions.
+2. The bullet keeps its physical `CollisionShape2D` for wall blocking.
+3. A child `Hitbox` Area2D on the projectile handles damage overlap against enemy hurtboxes.
+4. When a hitbox overlaps a hurtbox, `Hurtbox.receive_hit(damage, source)` is called.
+5. The owning entity's `take_damage(amount, source)` handles invulnerability, knockback, and entity-specific response logic.
+6. That method then delegates to `HealthComponent.take_damage(amount, source)`.
+7. `HealthComponent` applies damage and emits `damaged` and `died` once the remaining health reaches `0` or below.
+
+Important death rule
+--------------------
+The death condition is intentionally strict:
+
+- Death is triggered when `current_health <= 0`
+- Damage is ignored when the entity is already dead
+- Repeated hits are ignored after death
+
+This keeps death deterministic and prevents accidental repeated death triggers from overlap events.
+
+How the repo sets values
+------------------------
+The project exposes the key tuning values directly in the script Inspector so they are easy to debug:
+
+- `Player` max health: exported as `max_health`
+- `Rhinobug` max health: exported as `max_health`
+- `Rhinobug` contact damage: exported as `contact_damage`
+- `Player bullet` damage: exported as `damage`
+- `Player` invulnerability: exported as `invulnerability_time`
+- `Player` knockback: exported as `knockback_x` and `knockback_y`
+
+Current defaults in the repo are:
+
+- Player max health: `100`
+- Rhinobug max health: `5`
+- Rhinobug contact damage: `1`
+- Bullet damage: `1`
+- Player invulnerability time: `0.8`
+- Player knockback x: `120`
+- Player knockback y: `140`
 
 Why both Hurtbox and Hitbox?
 ----------------------------
-- Physics shapes resolve movement and should not be repurposed to represent attack areas — keeping them separate avoids movement/attack conflicts.
-- Hurtboxes let you define multiple damageable regions per entity (e.g., head, torso) and assign different responses or multipliers.
-- Hitboxes let you define precise attack geometry and timing independent of the entity's physical body.
-- Together they make it easy to implement projectiles, melee swings, traps, and bosses with large bodies but small vulnerable zones.
+- Physics collision and combat collision are intentionally separated.
+- Hurtboxes define where an entity can be damaged.
+- Hitboxes define the shape and timing of an attack.
+- This allows projectiles, melee, traps, and contact damage to share the same API without contaminating movement physics.
 
-Practical notes for contributors
--------------------------------
-- To make an entity damageable, add a `Hurtbox` Area2D child named `Hurtbox` (script attached) or ensure the entity exposes `take_damage(amount, source)`.
-- For attacks:
-  - Use `Hitbox` Area2D nodes that are enabled only during attack frames, or instantiate ephemeral `Hitbox` scenes at attack time.
-  - Configure `damage`, `one_shot` (set to `true` for single-hit), and `source` (the attacker node) on the `Hitbox`.
-- Projectiles (bullets) prefer `Hurtbox` on the collided body. If none exists, they fall back to calling `take_damage` on the collided body (backwards-compatible).
-- Keep visual feedback and invulnerability outside `HealthComponent` — `HealthComponent` must remain presentation-agnostic.
+Project-specific collision setup
+--------------------------------
+The project uses dedicated physics layers for this separation:
 
-Example usage
--------------
-- Player Melee: enable a child `Hitbox` during the attack animation, set `source = player`, `damage = 1`.
-- Enemy Contact: give the enemy a child `Hitbox` (used continuously or for short pulses) that damages the player's `Hurtbox`.
-- Projectile: bullets call `receive_hit` on the target's `Hurtbox` or `take_damage` on the collided body; no change needed by default.
+- World: layer 1
+- PlayerBody: layer 2
+- EnemyBody: layer 3
+- Hitbox: layer 4
+- Hurtbox: layer 5
+
+Typical setup:
+
+- Player body collision layer: `PlayerBody`
+- Enemy body collision layer: `EnemyBody`
+- Player hurtbox collision layer: `Hurtbox`, mask matches `Hitbox`
+- Enemy contact hitbox collision layer: `Hitbox`, mask matches `Hurtbox`
+- Bullet main body keeps `collision_layer = Hitbox` or projectile collision while wall collision continues on the `CharacterBody2D`
+- Bullet child `Hitbox` Area2D uses `collision_mask = Hurtbox`
+
+Practical usage notes
+---------------------
+- To make an entity damageable, add a child `Hurtbox` Area2D with the `Hurtbox` script, or ensure the entity exposes `take_damage(amount, source)`.
+- For entries that should only hit once, set `one_shot = true`.
+- For continuous damage zones, set `one_shot = false`.
+- Keep visual feedback (flash, knockback, death animation) in entity scripts, not in `HealthComponent`.
+- The `HealthComponent` should remain presentation-agnostic and only manage health state.
+
+Example flow in this repo
+------------------------
+- Player bullet: bullet physics body hits a wall; child `Hitbox` overlaps the enemy `Hurtbox` -> enemy receives `receive_hit` -> enemy `take_damage` -> `HealthComponent.take_damage()`.
+- Rhinobug contact: enemy `ContactDamage` Area2D overlaps the player `Hurtbox` -> player `take_damage()` -> player invul + knockback -> `HealthComponent.take_damage()`.
+- Death: once `current_health <= 0`, the entity plays death logic and disables collisions.
 
 Extensibility
 -------------
 This design supports:
-- Multiple damage types (add `damage_type` metadata to `Hitbox`/`HealthComponent`).
-- Different damage multipliers on different `Hurtbox` regions.
-- Bosses with large physics bodies but small `Hurtbox` areas.
-- Projectiles, traps, and environmental hazards using the same interface.
+- multiple damage types
+- different hurtbox regions
+- traps and environmental hazards
+- projectile and melee attack reuse
+- boss or enemy-specific damage hooks
 
-If you need help wiring a new enemy or an attack animation to this system, open an issue or ask for a short example scene.
+This documentation reflects the current repo implementation and should be kept in sync with future script changes.
