@@ -25,3 +25,9 @@ If you want to follow the project or see more of my work, you can find me here:
 
 - Instagram: @yourhandle
 - Twitter/X: @yourhandle
+
+## Standards
+
+Project-level design standards are documented in ROOM_SIZE_STANDARDS.md.
+
+See [ROOM_SIZE_STANDARDS.md](ROOM_SIZE_STANDARDS.md) for room and camera guidelines.

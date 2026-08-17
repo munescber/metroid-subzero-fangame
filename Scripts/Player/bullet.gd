@@ -39,7 +39,15 @@ func _on_hit(collision: KinematicCollision2D) -> void:
 	if collider == shooter:
 		return
 
-	if collider is Node and collider.has_method("take_damage"):
-		collider.call("take_damage", 1)
+	# Prefer a Hurtbox child if present
+	if collider is Node:
+		if collider.has_node("Hurtbox"):
+			var hb = collider.get_node("Hurtbox")
+			if hb and hb.has_method("receive_hit"):
+				hb.call("receive_hit", 1, shooter)
+				return
+		# fallback to old behavior
+		if collider.has_method("take_damage"):
+			collider.call("take_damage", 1, shooter)
 
 	queue_free()

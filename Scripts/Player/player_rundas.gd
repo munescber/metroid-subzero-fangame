@@ -29,6 +29,24 @@ var dash_remaining_distance: float = 0.0
 var dash_direction: float = 1.0
 var is_dashing: bool = false
 
+# Health component (instantiated at runtime)
+const HealthComponent = preload("res://Scripts/Common/health_component.gd")
+var health_comp = null
+
+# Damage / invulnerability
+@export var invulnerability_time: float = 0.8
+var invulnerable: bool = false
+var invul_timer: float = 0.0
+var invul_blink_interval: float = 0.08
+var invul_blink_timer: float = 0.0
+var _original_modulate: Color = Color(1,1,1,1)
+
+# Knockback
+@export var knockback_x: float = 120.0
+@export var knockback_y: float = 140.0
+
+
+
 func get_aim_direction() -> Vector2:
 	# horizontal is -1 when facing left, +1 when facing right
 	var horizontal: float = -1.0 if sprite.flip_h else 1.0
@@ -50,7 +68,18 @@ func get_aim_direction() -> Vector2:
 func _ready():
 	sprite.play("idle")
 	_update_muzzle_position()
-	
+
+	# Phase 1: instantiate HealthComponent and set default max health
+	health_comp = HealthComponent.new()
+	add_child(health_comp)
+	health_comp.max_health = 5
+	health_comp.connect("damaged", Callable(self, "_on_health_damaged"))
+	health_comp.connect("died", Callable(self, "_on_health_died"))
+
+	# save original sprite modulate for blinking
+	_original_modulate = sprite.modulate
+
+	# Hurtbox signals are handled by the Hurtbox API (no fallback hookup)
 
 # ==================================================
 # Main Physics Loop
@@ -67,6 +96,18 @@ func _physics_process(delta):
 		handle_horizontal_movement()
 
 	update_animation()
+
+	# invulnerability handling (blink + timer)
+	if invulnerable:
+		invul_timer = max(invul_timer - delta, 0.0)
+		invul_blink_timer -= delta
+		if invul_blink_timer <= 0.0:
+			invul_blink_timer = invul_blink_interval
+			# toggle alpha for blink effect
+			sprite.modulate = Color(1,1,1, 0.5) if sprite.modulate.a == 1.0 else _original_modulate
+		if invul_timer <= 0.0:
+			invulnerable = false
+			sprite.modulate = _original_modulate
 
 	move_and_slide()
 
@@ -86,6 +127,7 @@ func handle_shoot(delta):
 		# spawn slightly ahead so it doesn't immediately collide with player
 		bullet.global_position = muzzle.global_position + final_dir * 6
 		get_parent().add_child(bullet)
+
 
 
 func handle_dash(delta):
@@ -171,3 +213,38 @@ func update_animation():
 
 	else:
 		sprite.play("idle")
+
+
+### --- Phase 1: Damage shim and handlers ---
+func take_damage(amount: int, source = null) -> void:
+	if invulnerable:
+		return
+
+	# apply knockback using source if available
+	if source and source is Node2D:
+		var dir: Vector2 = (global_position - source.global_position).normalized()
+		velocity.x = dir.x * knockback_x
+		velocity.y = -abs(knockback_y)
+	else:
+		# generic upward knockback
+		velocity.y = -abs(knockback_y)
+
+	# mark invulnerable and start timers
+	invulnerable = true
+	invul_timer = invulnerability_time
+	invul_blink_timer = invul_blink_interval
+
+	if health_comp:
+		health_comp.take_damage(amount)
+
+func _on_health_damaged(amount: int, new_health: int) -> void:
+	print("Player damaged:", amount, "->", new_health)
+	# potential place to trigger hurt animation/sound
+
+func _on_health_died() -> void:
+	print("Player died")
+	# disable physics and input
+	set_physics_process(false)
+	velocity = Vector2.ZERO
+	# optional: play death animation or notify game manager
+# End of player_rundas.gd
