@@ -4,6 +4,8 @@ extends CharacterBody2D
 # Enemy Settings
 # ==================================================
 
+@export var max_health: int = 5
+@export var contact_damage: int = 1
 const SPEED := 40.0
 
 # Node that contains all patrol points (Marker2D nodes).
@@ -41,11 +43,11 @@ var direction := 1
 func _ready():
 	sprite.play("walk")
 
-	# Phase 1: add HealthComponent at runtime
+	# add HealthComponent at runtime using the exported health value
 	const HealthComponent = preload("res://Scripts/Common/health_component.gd")
 	health_comp = HealthComponent.new()
+	health_comp.set_max_health(max_health)
 	add_child(health_comp)
-	health_comp.max_health = 2
 	health_comp.connect("damaged", Callable(self, "_on_health_damaged"))
 	health_comp.connect("died", Callable(self, "_on_health_died"))
 
@@ -87,11 +89,11 @@ func _ready():
 	# state
 	is_dying = false
 
-	# configure hitbox properties
+	# configure hitbox properties from exported values
 	if has_node("ContactDamage"):
 		var hb = $ContactDamage
 		if hb is Area2D and hb.has_method("set"):
-			hb.set("damage", 1)
+			hb.set("damage", contact_damage)
 			hb.set("one_shot", false)
 			hb.set("source", self)
 
@@ -165,18 +167,19 @@ func _on_timer_timeout() -> void:
 
 
 func take_damage(amount: int, source = null) -> void:
+	print_debug("[Rhinobug] take_damage called. amount=", amount, " source=", source)
 	if health_comp:
-		health_comp.take_damage(amount)
+		health_comp.take_damage(amount, source)
 
 func _on_health_damaged(amount: int, new_health: int) -> void:
-	print("Rhinobug damaged:", amount, "->", new_health)
+	print_debug("[Rhinobug] damaged: ", amount, "->", new_health)
 	# flash red briefly
 	sprite.modulate = Color(1,0.5,0.5,1)
 	if timer:
 		timer.start(0.12)
 
 func _on_health_died() -> void:
-	print("Rhinobug died")
+	print_debug("[Rhinobug] died")
 	# play death effect then remove
 	is_dying = true
 	# disable collisions

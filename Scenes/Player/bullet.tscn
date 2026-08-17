@@ -36,10 +36,18 @@ animations = [{
 }]
 
 [node name="bullet" type="CharacterBody2D"]
-collision_layer = 2
+collision_layer = 8
+collision_mask = 1
 script = ExtResource("1_6y7z8")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_1")
+
+[node name="Hitbox" type="Area2D" parent="."]
+collision_layer = 8
+collision_mask = 16
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox"]
 shape = SubResource("RectangleShape2D_1")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]

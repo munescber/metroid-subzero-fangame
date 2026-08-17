@@ -33,6 +33,9 @@ var is_dashing: bool = false
 const HealthComponent = preload("res://Scripts/Common/health_component.gd")
 var health_comp = null
 
+# Health and damage tuning
+@export var max_health: int = 100
+
 # Damage / invulnerability
 @export var invulnerability_time: float = 0.8
 var invulnerable: bool = false
@@ -44,6 +47,9 @@ var _original_modulate: Color = Color(1,1,1,1)
 # Knockback
 @export var knockback_x: float = 120.0
 @export var knockback_y: float = 140.0
+
+# Player damage tuning for debugging
+@export var player_damage_taken: int = 1
 
 
 
@@ -69,10 +75,10 @@ func _ready():
 	sprite.play("idle")
 	_update_muzzle_position()
 
-	# Phase 1: instantiate HealthComponent and set default max health
+	# initialize HealthComponent with the exported max health before any fight damage occurs
 	health_comp = HealthComponent.new()
+	health_comp.set_max_health(max_health)
 	add_child(health_comp)
-	health_comp.max_health = 5
 	health_comp.connect("damaged", Callable(self, "_on_health_damaged"))
 	health_comp.connect("died", Callable(self, "_on_health_died"))
 
@@ -217,7 +223,9 @@ func update_animation():
 
 ### --- Phase 1: Damage shim and handlers ---
 func take_damage(amount: int, source = null) -> void:
+	print_debug("[Player] take_damage called. amount=", amount, " source=", source, " invulnerable=", invulnerable)
 	if invulnerable:
+		print_debug("[Player] Ignored due to invulnerability.")
 		return
 
 	# apply knockback using source if available
@@ -235,7 +243,7 @@ func take_damage(amount: int, source = null) -> void:
 	invul_blink_timer = invul_blink_interval
 
 	if health_comp:
-		health_comp.take_damage(amount)
+		health_comp.take_damage(amount, source)
 
 func _on_health_damaged(amount: int, new_health: int) -> void:
 	print("Player damaged:", amount, "->", new_health)
