@@ -44,8 +44,6 @@ radius = 5.0
 [node name="CharacterBody2D" type="CharacterBody2D" unique_id=1314953276]
 collision_layer = 4
 script = ExtResource("script_phantoon")
-radial_projectile_scene = preload("res://Scenes/Projectiles/radial_projectile.tscn")
-bounce_projectile_scene = preload("res://Scenes/Projectiles/bouncing_fireball.tscn")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1968815399]
 sprite_frames = SubResource("SpriteFrames_aavg1")

@@ -96,6 +96,12 @@ func _ready() -> void:
 	# Initialize timers
 	intangible_timer = 0.0
 	intangible_state_timer = 0.0
+	
+	# Load projectile scenes if not already set
+	if radial_projectile_scene == null:
+		radial_projectile_scene = load("res://Scenes/Projectiles/radial_projectile.tscn")
+	if bounce_projectile_scene == null:
+		bounce_projectile_scene = load("res://Scenes/Projectiles/bouncing_fireball.tscn")
 
 
 func _physics_process(delta: float) -> void:
