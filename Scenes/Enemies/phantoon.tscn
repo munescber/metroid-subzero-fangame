@@ -43,7 +43,6 @@ radius = 5.0
 
 [node name="CharacterBody2D" type="CharacterBody2D" unique_id=1314953276]
 collision_layer = 4
-collision_mask = 1
 script = ExtResource("script_phantoon")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1968815399]
@@ -51,14 +50,12 @@ sprite_frames = SubResource("SpriteFrames_aavg1")
 animation = &"idle"
 
 [node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="." unique_id=695936581]
-visible = false
 polygon = PackedVector2Array(0, -24, 12, -18, 15, -4, 9, 3, 10, 16, 0, 15, -11, 16, -10, 3, -16, -4, -13, -18)
 
 [node name="HealthComponent" type="Node" parent="." unique_id=1567525673]
 script = ExtResource("2_1a6kt")
 
 [node name="ContactDamage" type="Area2D" parent="." unique_id=1951132682]
-visible = false
 collision_layer = 8
 collision_mask = 16
 script = ExtResource("4_hitbox")
@@ -72,7 +69,7 @@ collision_mask = 8
 script = ExtResource("3_hurtbox")
 
 [node name="HurtboxCollision" type="CollisionShape2D" parent="Hurtbox" unique_id=1288175089]
-position = Vector2(0, -12)
+position = Vector2(0, -2)
 shape = SubResource("HurtboxShape_small")
 
 [node name="DamageFlashTimer" type="Timer" parent="." unique_id=1567525674]
