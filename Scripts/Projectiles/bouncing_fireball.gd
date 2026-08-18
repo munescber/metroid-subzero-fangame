@@ -6,9 +6,9 @@ const LIFETIME = 10.0
 const MAX_BOUNCES = 5
 
 @export var damage: int = 1
-@export var max_speed: float = 200.0
+@export var max_speed: float = 100.0
 
-var gravity: float = 300.0
+var gravity: float = ProjectSettings.get_setting("physics/2d/default_gravity")
 var initial_speed: float = 50.0
 var horizontal_velocity: float = 0.0
 var bounce_count: int = 0

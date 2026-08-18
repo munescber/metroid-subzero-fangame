@@ -93,5 +93,6 @@ position = Vector2(-38, -3)
 [node name="PointB" type="Marker2D" parent="rhinobug/PatrolPoints" unique_id=499679023]
 position = Vector2(41, -3)
 
-[node name="CharacterBody2D" parent="." unique_id=1314953276 instance=ExtResource("4_sjwyd")]
+[node name="Phantoon" parent="." unique_id=1314953276 instance=ExtResource("4_sjwyd")]
 position = Vector2(478, -106)
+max_health = 20

@@ -2,15 +2,15 @@ extends CharacterBody2D
 
 class_name Phantoon
 
-# Preload projectile scenes at script load time
-const RADIAL_PROJECTILE_SCENE = preload("res://Scenes/Projectiles/radial_projectile.tscn")
-const BOUNCE_PROJECTILE_SCENE = preload("res://Scenes/Projectiles/bouncing_fireball.tscn")
-
 # Boss states
 enum BossState { ORBIT, PAUSE, DASH, ATTACK_BURST, ATTACK_BOUNCE, INTANGIBLE, DEAD }
 
 # Current state
 var current_state: BossState = BossState.ORBIT
+
+# Projectile scenes (lazy loaded)
+var radial_projectile_scene: PackedScene = null
+var bounce_projectile_scene: PackedScene = null
 
 # Movement configuration
 @export var arena_center: Vector2 = Vector2.ZERO
@@ -96,6 +96,17 @@ func _ready() -> void:
 	# Initialize timers
 	intangible_timer = 0.0
 	intangible_state_timer = 0.0
+	
+	# Lazy load projectile scenes
+	if radial_projectile_scene == null:
+		radial_projectile_scene = load("res://Scenes/Projectiles/radial_projectile.tscn")
+		if radial_projectile_scene == null:
+			print_debug("[Phantoon] WARNING: Could not load radial_projectile.tscn")
+	
+	if bounce_projectile_scene == null:
+		bounce_projectile_scene = load("res://Scenes/Projectiles/bouncing_fireball.tscn")
+		if bounce_projectile_scene == null:
+			print_debug("[Phantoon] WARNING: Could not load bouncing_fireball.tscn")
 
 
 func _physics_process(delta: float) -> void:
@@ -169,16 +180,16 @@ func update_dash_movement(delta: float) -> void:
 		orbit_angle = (dash_target - arena_center).angle()
 		
 		# Alternate between burst and bounce attacks
-		if phase == 1:
+		# Phase 1: Mostly bursts with occasional bounces (30% chance bounce)
+		# Phase 2: More balanced (50% chance bounce)
+		var bounce_chance = 0.3 if phase == 1 else 0.5
+		
+		if randf() < bounce_chance:
+			spawn_bounce_attack()
+			current_state = BossState.ATTACK_BOUNCE
+		else:
 			spawn_burst_attack()
 			current_state = BossState.ATTACK_BURST
-		else:  # Phase 2 - alternate attacks
-			if randf() > 0.5:
-				spawn_burst_attack()
-				current_state = BossState.ATTACK_BURST
-			else:
-				spawn_bounce_attack()
-				current_state = BossState.ATTACK_BOUNCE
 		
 		state_timer = 0.0
 		attack_timer = 0.0  # Reset attack timer for next orbit cycle
@@ -250,6 +261,10 @@ func update_attack_bounce_state(delta: float) -> void:
 func spawn_burst_attack() -> void:
 	print_debug("[Phantoon] Spawning radial burst attack!")
 	
+	if radial_projectile_scene == null:
+		print_debug("[Phantoon] ERROR: radial_projectile_scene not loaded. Skipping attack.")
+		return
+	
 	var projectile_speed = phase_1_burst_speed if phase == 1 else phase_2_burst_speed
 	var rotation_offset = phase_1_burst_rotation if phase == 1 else phase_2_burst_rotation
 	var angle_step = TAU / burst_projectile_count
@@ -259,7 +274,7 @@ func spawn_burst_attack() -> void:
 		var direction = Vector2(cos(angle), sin(angle))
 		
 		# Spawn projectile
-		var projectile = RADIAL_PROJECTILE_SCENE.instantiate()
+		var projectile = radial_projectile_scene.instantiate()
 		get_parent().add_child(projectile)
 		projectile.global_position = global_position
 		
@@ -273,6 +288,10 @@ func spawn_burst_attack() -> void:
 func spawn_bounce_attack() -> void:
 	print_debug("[Phantoon] Spawning bouncing fireball attack!")
 	
+	if bounce_projectile_scene == null:
+		print_debug("[Phantoon] ERROR: bounce_projectile_scene not loaded. Skipping attack.")
+		return
+	
 	var fireball_count = phase_1_bounce_count if phase == 1 else phase_2_bounce_count
 	
 	for i in range(fireball_count):
@@ -280,7 +299,7 @@ func spawn_bounce_attack() -> void:
 		var offset_x = randf_range(-20.0, 20.0)
 		var spawn_pos = global_position + Vector2(offset_x, -40.0)
 		
-		var fireball = BOUNCE_PROJECTILE_SCENE.instantiate()
+		var fireball = bounce_projectile_scene.instantiate()
 		get_parent().add_child(fireball)
 		fireball.global_position = spawn_pos
 		

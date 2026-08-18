@@ -1,19 +1,33 @@
-[gd_scene load_steps=7 format=3 uid="uid://b2vcg0i8n1yfz"]
+[gd_scene format=3 uid="uid://b2vcg0i8n1yf0"]
 
-[ext_resource type="Script" path="res://Scripts/Projectiles/bouncing_fireball.gd" id="1_bounce"]
-[ext_resource type="Texture2D" path="res://Spritesheets/phantoon_flames.png" id="2_flames"]
+[ext_resource type="Script" uid="uid://cyvd0qnlnnnhx" path="res://Scripts/Projectiles/bouncing_fireball.gd" id="1_bounce"]
+[ext_resource type="Texture2D" uid="uid://ce0s8fpjo344b" path="res://Spritesheets/phantoon_flames.png" id="2_flames"]
 
-[sub_resource type="AtlasTexture" id="FireballTexture"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_na406"]
 atlas = ExtResource("2_flames")
-region = Rect2(16, 0, 16, 16)
+region = Rect2(0, 16, 8, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_7wsrk"]
+atlas = ExtResource("2_flames")
+region = Rect2(8, 16, 8, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_34x33"]
+atlas = ExtResource("2_flames")
+region = Rect2(16, 16, 8, 16)
 
 [sub_resource type="SpriteFrames" id="FireballSpriteFrames"]
 animations = [{
 "frames": [{
 "duration": 1.0,
-"texture": SubResource("FireballTexture")
+"texture": SubResource("AtlasTexture_na406")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_7wsrk")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_34x33")
 }],
-"loop": true,
+"loop": 1,
 "name": &"idle",
 "speed": 5.0
 }]
@@ -22,21 +36,20 @@ animations = [{
 radius = 8.0
 
 [sub_resource type="CircleShape2D" id="FireballHitboxShape"]
-radius = 10.0
 
-[node name="BouncingFireball" type="CharacterBody2D"]
+[node name="BouncingFireball" type="CharacterBody2D" unique_id=793771655]
 script = ExtResource("1_bounce")
 
-[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=242323503]
 sprite_frames = SubResource("FireballSpriteFrames")
 animation = &"idle"
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1393493148]
 shape = SubResource("FireballShape")
 
-[node name="Hitbox" type="Area2D" parent="."]
+[node name="Hitbox" type="Area2D" parent="." unique_id=416894515]
 collision_layer = 8
 collision_mask = 0
 
-[node name="HitboxShape" type="CollisionShape2D" parent="Hitbox"]
+[node name="HitboxShape" type="CollisionShape2D" parent="Hitbox" unique_id=475790821]
 shape = SubResource("FireballHitboxShape")
