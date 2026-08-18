@@ -1,9 +1,9 @@
-[gd_scene load_steps=9 format=3 uid="uid://cir4pmo4aqvq0"]
+[gd_scene load_steps=10 format=3 uid="uid://cir4pmo4aqvq0"]
 
 [ext_resource type="Texture2D" uid="uid://bpv5xgmfqxp2a" path="res://Spritesheets/phantoon.png" id="1_4r5wi"]
-[ext_resource type="Script" path="res://Scripts/Enemies/phantoon.gd" id="script_phantoon"]
-[ext_resource type="Script" path="res://Scripts/Common/health_component.gd" id="2_1a6kt"]
-[ext_resource type="Script" path="res://Scripts/Common/hurtbox.gd" id="3_hurtbox"]
+[ext_resource type="Script" uid="uid://c3c0xff4hp2wj" path="res://Scripts/Common/health_component.gd" id="2_1a6kt"]
+[ext_resource type="Script" uid="uid://cjlps8ugi1jdq" path="res://Scripts/Common/hurtbox.gd" id="3_hurtbox"]
+[ext_resource type="Script" uid="uid://iktbh6r71vei" path="res://Scripts/Enemies/phantoon.gd" id="script_phantoon"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_hdtoa"]
 atlas = ExtResource("1_4r5wi")
@@ -32,28 +32,35 @@ animations = [{
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_0bnid")
 }],
-"loop": true,
+"loop": 1,
 "name": &"idle",
 "speed": 2.0
 }]
 
-[node name="CharacterBody2D" type="CharacterBody2D"]
+[sub_resource type="CircleShape2D" id="HurtboxShape_small"]
+radius = 6.0
+
+[node name="CharacterBody2D" type="CharacterBody2D" unique_id=1314953276]
 script = ExtResource("script_phantoon")
 
-[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1968815399]
 sprite_frames = SubResource("SpriteFrames_aavg1")
 animation = &"idle"
 
-[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="."]
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="." unique_id=695936581]
+visible = false
 polygon = PackedVector2Array(0, -24, 12, -18, 15, -4, 9, 3, 10, 16, 0, 15, -11, 16, -10, 3, -16, -4, -13, -18)
 
-[node name="HealthComponent" type="Node" parent="."]
+[node name="HealthComponent" type="Node" parent="." unique_id=1567525673]
 script = ExtResource("2_1a6kt")
 
-[node name="Hurtbox" type="Area2D" parent="."]
+[node name="Hurtbox" type="Area2D" parent="." unique_id=1951132681]
+collision_layer = 16
+collision_mask = 8
 script = ExtResource("3_hurtbox")
-collision_layer = 0
-collision_mask = 2
 
-[node name="HurtboxCollision" type="CollisionPolygon2D" parent="Hurtbox"]
-polygon = PackedVector2Array(0, -24, 12, -18, 15, -4, 9, 3, 10, 16, 0, 15, -11, 16, -10, 3, -16, -4, -13, -18)
+[node name="HurtboxCollision" type="CollisionShape2D" parent="Hurtbox" unique_id=1288175089]
+shape = SubResource("HurtboxShape_small")
+
+[node name="DamageFlashTimer" type="Timer" parent="." unique_id=1567525674]
+one_shot = true

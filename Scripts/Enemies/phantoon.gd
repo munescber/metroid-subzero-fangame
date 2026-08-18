@@ -10,7 +10,7 @@ var current_state: BossState = BossState.ORBIT
 
 # Movement configuration
 @export var arena_center: Vector2 = Vector2.ZERO
-@export var orbit_radius: float = 100.0
+@export var orbit_radius: float = 40.0
 @export var orbit_speed: float = 1.5
 var orbit_direction: float = 1.0  # 1.0 = clockwise, -1.0 = counter-clockwise
 var orbit_angle: float = 0.0
@@ -30,6 +30,11 @@ var dash_target: Vector2 = Vector2.ZERO
 # References
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
 @onready var health: HealthComponent = $HealthComponent
+@onready var damage_flash_timer: Timer = $DamageFlashTimer
+
+# Attack timing
+var attack_timer: float = 0.0
+@export var orbit_duration: float = 3.0  # How long to orbit before pausing
 
 
 func _ready() -> void:
@@ -44,6 +49,9 @@ func _ready() -> void:
 	health.damaged.connect(_on_health_damaged)
 	health.died.connect(_on_health_died)
 	
+	# Connect damage flash timer
+	damage_flash_timer.timeout.connect(_on_damage_flash_timer_timeout)
+	
 	# Start animation
 	if sprite != null:
 		sprite.play("idle")
@@ -53,6 +61,15 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	# Handle attack timer (triggers pause/dash cycle)
+	if current_state == BossState.ORBIT:
+		attack_timer += delta
+		if attack_timer >= orbit_duration:
+			# Transition to pause
+			current_state = BossState.PAUSE
+			attack_timer = 0.0
+			state_timer = 0.0
+	
 	match current_state:
 		BossState.ORBIT:
 			update_orbit_movement(delta)
@@ -108,6 +125,7 @@ func update_dash_movement(delta: float) -> void:
 		orbit_angle = (dash_target - arena_center).angle()
 		current_state = BossState.ORBIT
 		state_timer = 0.0
+		attack_timer = 0.0  # Reset attack timer for next orbit cycle
 
 
 func update_intangible_state(delta: float) -> void:
@@ -151,7 +169,10 @@ func enter_phase_2() -> void:
 
 func _on_health_damaged(amount: int, new_health: int) -> void:
 	print_debug("[Phantoon] Took damage: ", amount, " | Health: ", new_health, "/", max_health)
-	# Visual feedback (sprite flash, etc.) can be added here later
+	# Visual feedback: sprite flash red briefly
+	if sprite != null:
+		sprite.modulate = Color(1, 0.5, 0.5, 1)  # Red tint
+		damage_flash_timer.start(0.12)  # Flash duration
 
 
 func _on_health_died() -> void:
@@ -169,3 +190,9 @@ func update_sprite_direction() -> void:
 	if sprite != null:
 		# Flip sprite based on orbit direction
 		sprite.flip_h = orbit_direction < 0
+
+
+func _on_damage_flash_timer_timeout() -> void:
+	# Reset sprite modulation after damage flash
+	if sprite != null:
+		sprite.modulate = Color(1, 1, 1, 1)
