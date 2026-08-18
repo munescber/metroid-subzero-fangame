@@ -1,0 +1,41 @@
+[gd_scene load_steps=6 format=3 uid="uid://c0chvg1x7i1re"]
+
+[ext_resource type="Script" path="res://Scripts/Projectiles/radial_projectile.gd" id="1_radial"]
+
+[sub_resource type="AtlasTexture" id="RadialProjectileTexture"]
+atlas = preload("res://Spritesheets/phantoon_flames.png")
+region = Rect2(0, 0, 16, 16)
+
+[sub_resource type="SpriteFrames" id="RadialProjectileSpriteFrames"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("RadialProjectileTexture")
+}],
+"loop": true,
+"name": &"idle",
+"speed": 5.0
+}]
+
+[sub_resource type="CircleShape2D" id="RadialProjectileShape"]
+radius = 6.0
+
+[sub_resource type="CircleShape2D" id="RadialHitboxShape"]
+radius = 8.0
+
+[node name="RadialProjectile" type="CharacterBody2D"]
+script = ExtResource("1_radial")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+sprite_frames = SubResource("RadialProjectileSpriteFrames")
+animation = &"idle"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RadialProjectileShape")
+
+[node name="Hitbox" type="Area2D" parent="."]
+collision_layer = 8
+collision_mask = 0
+
+[node name="HitboxShape" type="CollisionShape2D" parent="Hitbox"]
+shape = SubResource("RadialHitboxShape")

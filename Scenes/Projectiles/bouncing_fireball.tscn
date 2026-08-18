@@ -1,0 +1,41 @@
+[gd_scene load_steps=6 format=3 uid="uid://b2vcg0i8n1yfz"]
+
+[ext_resource type="Script" path="res://Scripts/Projectiles/bouncing_fireball.gd" id="1_bounce"]
+
+[sub_resource type="AtlasTexture" id="FireballTexture"]
+atlas = preload("res://Spritesheets/phantoon_flames.png")
+region = Rect2(16, 0, 16, 16)
+
+[sub_resource type="SpriteFrames" id="FireballSpriteFrames"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("FireballTexture")
+}],
+"loop": true,
+"name": &"idle",
+"speed": 5.0
+}]
+
+[sub_resource type="CircleShape2D" id="FireballShape"]
+radius = 8.0
+
+[sub_resource type="CircleShape2D" id="FireballHitboxShape"]
+radius = 10.0
+
+[node name="BouncingFireball" type="CharacterBody2D"]
+script = ExtResource("1_bounce")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+sprite_frames = SubResource("FireballSpriteFrames")
+animation = &"idle"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("FireballShape")
+
+[node name="Hitbox" type="Area2D" parent="."]
+collision_layer = 8
+collision_mask = 0
+
+[node name="HitboxShape" type="CollisionShape2D" parent="Hitbox"]
+shape = SubResource("FireballHitboxShape")
