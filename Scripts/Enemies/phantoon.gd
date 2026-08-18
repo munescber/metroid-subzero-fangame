@@ -56,8 +56,8 @@ var intangible_state_timer: float = 0.0
 @export var phase_2_burst_speed: float = 150.0
 @export var phase_1_burst_rotation: float = 0.0
 @export var phase_2_burst_rotation: float = 0.523599  # 30 degrees in radians
-@export var phase_1_bounce_count: int = 2
-@export var phase_2_bounce_count: int = 4
+@export var phase_1_bounce_count: int = 4
+@export var phase_2_bounce_count: int = 6
 @export var bounce_projectile_speed: float = 50.0
 @export var bounce_gravity: float = 300.0
 
@@ -294,10 +294,15 @@ func spawn_bounce_attack() -> void:
 	
 	var fireball_count = phase_1_bounce_count if phase == 1 else phase_2_bounce_count
 	
+	# Create evenly spaced spawn points below the boss
+	# For example, if fireball_count = 5, they spawn at: -40, -20, 0, +20, +40 units horizontally
+	var spacing = 20.0  # Distance between each fireball
+	var start_offset = -(fireball_count - 1) * spacing / 2.0  # Center the pattern
+	
 	for i in range(fireball_count):
-		# Spawn fireballs at slightly offset positions
-		var offset_x = randf_range(-20.0, 20.0)
-		var spawn_pos = global_position + Vector2(offset_x, -40.0)
+		# Calculate horizontal offset for this fireball
+		var offset_x = start_offset + (i * spacing)
+		var spawn_pos = global_position + Vector2(offset_x, 40.0)
 		
 		var fireball = bounce_projectile_scene.instantiate()
 		get_parent().add_child(fireball)

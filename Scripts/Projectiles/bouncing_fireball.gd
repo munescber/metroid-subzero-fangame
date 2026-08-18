@@ -6,14 +6,15 @@ const LIFETIME = 10.0
 const MAX_BOUNCES = 5
 
 @export var damage: int = 1
-@export var max_speed: float = 100.0
+@export var max_speed: float = 200.0
 
-var gravity: float = ProjectSettings.get_setting("physics/2d/default_gravity")
-var initial_speed: float = 50.0
+var gravity: float = 300.0  # Default gravity - will be overridden by setup()
+var initial_speed: float = 30.0  # Initial horizontal speed
 var horizontal_velocity: float = 0.0
 var bounce_count: int = 0
 var life_timer: float = LIFETIME
 var has_hit_player: bool = false
+var spawn_grace_period: float = 0.15  # Don't collide for first 0.15 seconds after spawn
 
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
 @onready var hitbox: Area2D = $Hitbox
@@ -28,32 +29,39 @@ func _ready() -> void:
 	
 	# Random horizontal velocity for variation
 	horizontal_velocity = randf_range(-initial_speed, initial_speed)
+	
+	# Start with a small downward velocity to ensure falling immediately
+	velocity.y = 10.0
 
 
 func _physics_process(delta: float) -> void:
+	# Reduce grace period
+	spawn_grace_period -= delta
+	
 	# Apply gravity
 	velocity.y += gravity * delta
 	
-	# Clamp vertical velocity to max speed
+	# Clamp vertical velocity to max speed to prevent going too fast
 	velocity.y = min(velocity.y, max_speed)
 	
-	# Horizontal movement
+	# Horizontal movement (apply friction over time)
 	velocity.x = horizontal_velocity
 	
 	# Move and detect collisions
 	var collision = move_and_collide(velocity * delta)
 	
-	if collision:
+	# Only process collisions after grace period expires
+	if collision and spawn_grace_period <= 0.0:
 		var normal = collision.get_normal()
 		
-		# Check if hitting the floor (roughly)
+		# Check if hitting the floor (normal points up, so y < -0.5)
 		if normal.y < -0.5:  # Hit from above (floor)
 			if bounce_count < MAX_BOUNCES:
-				# Bounce
-				velocity.y = -abs(velocity.y) * 0.7  # Reduce bounce height
+				# Bounce with energy loss
+				velocity.y = -abs(velocity.y) * 0.6  # Reduce bounce height (was 0.7)
 				bounce_count += 1
-				horizontal_velocity *= 0.8  # Reduce horizontal speed
-				print_debug("[Fireball] Bounce #", bounce_count)
+				horizontal_velocity *= 0.7  # Reduce horizontal speed more (was 0.8)
+				print_debug("[Fireball] Bounce #", bounce_count, " | velocity.y: ", velocity.y)
 			else:
 				# Max bounces reached, destroy
 				queue_free()

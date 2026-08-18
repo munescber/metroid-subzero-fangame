@@ -5,15 +5,15 @@
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_mgcbm"]
 atlas = ExtResource("2_flames")
-region = Rect2(0, 0, 8, 16)
+region = Rect2(0, 16, 8, 16)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_7wweh"]
 atlas = ExtResource("2_flames")
-region = Rect2(8, 0, 8, 16)
+region = Rect2(8, 16, 8, 16)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_ddf66"]
 atlas = ExtResource("2_flames")
-region = Rect2(16, 0, 8, 16)
+region = Rect2(16, 16, 8, 16)
 
 [sub_resource type="SpriteFrames" id="RadialProjectileSpriteFrames"]
 animations = [{

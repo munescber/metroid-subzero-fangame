@@ -33,9 +33,10 @@ animations = [{
 }]
 
 [sub_resource type="CircleShape2D" id="FireballShape"]
-radius = 8.0
+radius = 6.0
 
 [sub_resource type="CircleShape2D" id="FireballHitboxShape"]
+radius = 6.0
 
 [node name="BouncingFireball" type="CharacterBody2D" unique_id=793771655]
 script = ExtResource("1_bounce")
@@ -45,6 +46,7 @@ sprite_frames = SubResource("FireballSpriteFrames")
 animation = &"idle"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1393493148]
+position = Vector2(0, 2)
 shape = SubResource("FireballShape")
 
 [node name="Hitbox" type="Area2D" parent="." unique_id=416894515]
@@ -52,4 +54,5 @@ collision_layer = 8
 collision_mask = 0
 
 [node name="HitboxShape" type="CollisionShape2D" parent="Hitbox" unique_id=475790821]
+position = Vector2(0, 2)
 shape = SubResource("FireballHitboxShape")
