@@ -31,6 +31,10 @@ var dash_target: Vector2 = Vector2.ZERO
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
 @onready var health: HealthComponent = $HealthComponent
 @onready var damage_flash_timer: Timer = $DamageFlashTimer
+@onready var contact_damage: Node = $ContactDamage
+
+# Contact damage configuration
+@export var contact_damage_value: int = 1
 
 # Attack timing
 var attack_timer: float = 0.0
@@ -51,6 +55,12 @@ func _ready() -> void:
 	
 	# Connect damage flash timer
 	damage_flash_timer.timeout.connect(_on_damage_flash_timer_timeout)
+	
+	# Configure contact damage (hitting the player)
+	if contact_damage and contact_damage.has_method("set"):
+		contact_damage.set("damage", contact_damage_value)
+		contact_damage.set("one_shot", false)  # Continuous damage, not one-shot
+		contact_damage.set("source", self)
 	
 	# Start animation
 	if sprite != null:
