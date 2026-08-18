@@ -62,6 +62,43 @@ Current defaults in the repo are:
 - Player knockback x: `120`
 - Player knockback y: `140`
 
+Spatial Proximity Validation (feat/phantoon-logic)
+---------------------------------------------------
+**How it works: Selective damage zones with distance checks**
+
+Introduced in the `feat/phantoon-logic` branch, this system allows entities to have damage-receiving areas (Hurtbox) that are spatially distinct from their contact damage areas (Hitbox). This is especially useful for boss fights where you want players to only take damage when hitting a specific weak point.
+
+**Key behaviors:**
+
+1. **ContactDamage Area2D** (layer 8, mask 16)
+   - Handles collision-based damage the entity *deals* to others (e.g., boss hurts player on contact)
+   - Uses full-body collision shape to detect player Hurtbox on contact
+   - Only triggers when player physically touches the enemy
+
+2. **Hurtbox Area2D** (layer 16, mask 8)
+   - Defines the damageable region the entity *receives*
+   - Can be positioned at a specific weak point (e.g., eye, head, core)
+   - Includes **spatial proximity validation** in `receive_hit()`
+
+3. **Spatial Proximity Validation**
+   - `Hurtbox.receive_hit()` checks the distance between the damage source and hurtbox center
+   - Only accepts damage if `source_distance <= ~10 units` from hurtbox
+   - Rejects damage from sources too far away (prevents accidental hits on body parts)
+   - Allows tight control over damage zones without requiring complex physics layers
+
+**Practical example (Phantoon boss):**
+- Boss body is full-size collision polygon (ContactDamage)
+- Boss eye is small circle at position (0, -2) with radius 5 (Hurtbox)
+- Bullets hitting the eye: distance < 10, damage accepted ✓
+- Bullets hitting the body: distance > 10, damage rejected ✗
+- Player touching boss: ContactDamage overlaps player Hurtbox, damage applied ✓
+
+**Collision layer configuration (feat/phantoon-logic):**
+- Layer 1: World
+- Layer 4: EnemyBody (CharacterBody2D)
+- Layer 8: Hitbox (ContactDamage for "damage dealt")
+- Layer 16: Hurtbox (for "damage received")
+
 Why both Hurtbox and Hitbox?
 ----------------------------
 - Physics collision and combat collision are intentionally separated.
