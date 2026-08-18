@@ -2,6 +2,10 @@ extends CharacterBody2D
 
 class_name Phantoon
 
+# Preload projectile scenes at script load time
+const RADIAL_PROJECTILE_SCENE = preload("res://Scenes/Projectiles/radial_projectile.tscn")
+const BOUNCE_PROJECTILE_SCENE = preload("res://Scenes/Projectiles/bouncing_fireball.tscn")
+
 # Boss states
 enum BossState { ORBIT, PAUSE, DASH, ATTACK_BURST, ATTACK_BOUNCE, INTANGIBLE, DEAD }
 
@@ -57,10 +61,6 @@ var intangible_state_timer: float = 0.0
 @export var bounce_projectile_speed: float = 50.0
 @export var bounce_gravity: float = 300.0
 
-# References to projectile scenes
-@export var radial_projectile_scene: PackedScene = null
-@export var bounce_projectile_scene: PackedScene = null
-
 # Hurtbox reference (for intangible state)
 @onready var hurtbox: Area2D = $Hurtbox
 
@@ -96,12 +96,6 @@ func _ready() -> void:
 	# Initialize timers
 	intangible_timer = 0.0
 	intangible_state_timer = 0.0
-	
-	# Load projectile scenes if not already set
-	if radial_projectile_scene == null:
-		radial_projectile_scene = load("res://Scenes/Projectiles/radial_projectile.tscn")
-	if bounce_projectile_scene == null:
-		bounce_projectile_scene = load("res://Scenes/Projectiles/bouncing_fireball.tscn")
 
 
 func _physics_process(delta: float) -> void:
@@ -255,9 +249,6 @@ func update_attack_bounce_state(delta: float) -> void:
 
 func spawn_burst_attack() -> void:
 	print_debug("[Phantoon] Spawning radial burst attack!")
-	if radial_projectile_scene == null:
-		print_debug("[Phantoon] ERROR: radial_projectile_scene not assigned!")
-		return
 	
 	var projectile_speed = phase_1_burst_speed if phase == 1 else phase_2_burst_speed
 	var rotation_offset = phase_1_burst_rotation if phase == 1 else phase_2_burst_rotation
@@ -268,7 +259,7 @@ func spawn_burst_attack() -> void:
 		var direction = Vector2(cos(angle), sin(angle))
 		
 		# Spawn projectile
-		var projectile = radial_projectile_scene.instantiate()
+		var projectile = RADIAL_PROJECTILE_SCENE.instantiate()
 		get_parent().add_child(projectile)
 		projectile.global_position = global_position
 		
@@ -281,9 +272,6 @@ func spawn_burst_attack() -> void:
 
 func spawn_bounce_attack() -> void:
 	print_debug("[Phantoon] Spawning bouncing fireball attack!")
-	if bounce_projectile_scene == null:
-		print_debug("[Phantoon] ERROR: bounce_projectile_scene not assigned!")
-		return
 	
 	var fireball_count = phase_1_bounce_count if phase == 1 else phase_2_bounce_count
 	
@@ -292,7 +280,7 @@ func spawn_bounce_attack() -> void:
 		var offset_x = randf_range(-20.0, 20.0)
 		var spawn_pos = global_position + Vector2(offset_x, -40.0)
 		
-		var fireball = bounce_projectile_scene.instantiate()
+		var fireball = BOUNCE_PROJECTILE_SCENE.instantiate()
 		get_parent().add_child(fireball)
 		fireball.global_position = spawn_pos
 		
