@@ -1,9 +1,10 @@
-[gd_scene load_steps=6 format=3 uid="uid://c0chvg1x7i1re"]
+[gd_scene load_steps=7 format=3 uid="uid://c0chvg1x7i1re"]
 
 [ext_resource type="Script" path="res://Scripts/Projectiles/radial_projectile.gd" id="1_radial"]
+[ext_resource type="Texture2D" path="res://Spritesheets/phantoon_flames.png" id="2_flames"]
 
 [sub_resource type="AtlasTexture" id="RadialProjectileTexture"]
-atlas = preload("res://Spritesheets/phantoon_flames.png")
+atlas = ExtResource("2_flames")
 region = Rect2(0, 0, 16, 16)
 
 [sub_resource type="SpriteFrames" id="RadialProjectileSpriteFrames"]

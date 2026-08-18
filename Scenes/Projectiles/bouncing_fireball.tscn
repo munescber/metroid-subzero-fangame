@@ -1,9 +1,10 @@
-[gd_scene load_steps=6 format=3 uid="uid://b2vcg0i8n1yfz"]
+[gd_scene load_steps=7 format=3 uid="uid://b2vcg0i8n1yfz"]
 
 [ext_resource type="Script" path="res://Scripts/Projectiles/bouncing_fireball.gd" id="1_bounce"]
+[ext_resource type="Texture2D" path="res://Spritesheets/phantoon_flames.png" id="2_flames"]
 
 [sub_resource type="AtlasTexture" id="FireballTexture"]
-atlas = preload("res://Spritesheets/phantoon_flames.png")
+atlas = ExtResource("2_flames")
 region = Rect2(16, 0, 16, 16)
 
 [sub_resource type="SpriteFrames" id="FireballSpriteFrames"]
