@@ -4,6 +4,7 @@
 [ext_resource type="PackedScene" uid="uid://j5gmhjrkkpwd" path="res://Scenes/Player/player.tscn" id="2_6rmbd"]
 [ext_resource type="PackedScene" uid="uid://dri1mvk6spx6b" path="res://Scenes/Enemies/rhinobug.tscn" id="3_p28h1"]
 [ext_resource type="PackedScene" uid="uid://cir4pmo4aqvq0" path="res://Scenes/Enemies/phantoon.tscn" id="4_sjwyd"]
+[ext_resource type="PackedScene" uid="uid://cw7bfx73i6fak" path="res://Scenes/Enemies/ghost_covern.tscn" id="5_dv0up"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_6rmbd"]
 texture = ExtResource("1_7sarq")
@@ -97,3 +98,6 @@ position = Vector2(41, -3)
 position = Vector2(473, -113)
 orbit_radius = 30.0
 max_health = 20
+
+[node name="Covern" parent="." unique_id=1365786692 instance=ExtResource("5_dv0up")]
+position = Vector2(243, -86)

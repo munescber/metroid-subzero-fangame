@@ -8,34 +8,21 @@ var owner_entity: Node = null
 func _ready() -> void:
 	if owner_entity == null:
 		owner_entity = get_parent()
-	connect("area_entered", Callable(self, "_on_area_entered"))
-	connect("body_entered", Callable(self, "_on_body_entered"))
-
-func _on_area_entered(area: Area2D) -> void:
-	if area == self:
-		return
-	if area and area.has_method("receive_hit"):
-		return
-	if owner_entity and owner_entity.has_method("take_damage"):
-		# area_entered is used for other areas that expose damage data directly
-		if area and area.has_method("get") and area.get("damage") != null:
-			receive_hit(area.get("damage"), area.get("source"))
-		return
-
-func _on_body_entered(body: Node) -> void:
-	if body == owner_entity:
-		return
-	if body and body.has_method("receive_hit"):
-		body.call("receive_hit", 1, owner_entity)
-		return
-	if body and body.has_node("Hurtbox"):
-		var hurtbox = body.get_node("Hurtbox")
-		if hurtbox and hurtbox.has_method("receive_hit"):
-			hurtbox.call("receive_hit", 1, owner_entity)
-		return
 
 func receive_hit(damage: int, source = null) -> void:
-	if source == owner_entity:
-		return
+	# Validate that the source is actually near this hurtbox
+	# This prevents damage from physics collisions on other parts of the body
+	if source and source.has_method("get_global_position"):
+		# Check distance between source and hurtbox center
+		var source_pos = source.get_global_position()
+		var hurtbox_pos = get_global_position()
+		var distance = source_pos.distance_to(hurtbox_pos)
+		
+		# Only accept damage if source is within ~10 units of hurtbox
+		# (hurtbox radius is 5, plus some tolerance for bullet size)
+		if distance > 10.0:
+			print_debug("[Hurtbox] Damage rejected - source too far (distance: %.1f)" % distance)
+			return
+	
 	if owner_entity and owner_entity.has_method("take_damage"):
 		owner_entity.call("take_damage", damage, source)
