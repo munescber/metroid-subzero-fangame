@@ -1,6 +1,10 @@
 [gd_scene format=3 uid="uid://cw7bfx73i6fak"]
 
 [ext_resource type="Texture2D" uid="uid://cgvulglh6vp64" path="res://Spritesheets/ghost_covern_spritesheet.png" id="1_3exjd"]
+[ext_resource type="Script" uid="uid://dx22yd18piro8" path="res://Scripts/Enemies/ghost_covern.gd" id="2_7s3g0"]
+[ext_resource type="Script" uid="uid://c3c0xff4hp2wj" path="res://Scripts/Common/health_component.gd" id="3_vblcn"]
+[ext_resource type="Script" uid="uid://cjlps8ugi1jdq" path="res://Scripts/Common/hurtbox.gd" id="4_xkbvl"]
+[ext_resource type="Script" uid="uid://bhmvadygcndqr" path="res://Scripts/Common/contact_damage.gd" id="5_w9x2k"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_45ys8"]
 atlas = ExtResource("1_3exjd")
@@ -37,12 +41,41 @@ animations = [{
 [sub_resource type="CircleShape2D" id="CircleShape2D_acosf"]
 radius = 11.0
 
-[node name="CharacterBody2D" type="CharacterBody2D" unique_id=1365786692]
+[sub_resource type="CircleShape2D" id="CircleShape2D_hurtbox"]
+radius = 12.0
 
-[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=248621077]
+[sub_resource type="CircleShape2D" id="CircleShape2D_detection"]
+radius = 82.0
+
+[node name="GhostCovern" type="CharacterBody2D" unique_id=386100342]
+script = ExtResource("2_7s3g0")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1315883716]
 sprite_frames = SubResource("SpriteFrames_gbtge")
 frame_progress = 0.5741333
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1120372748]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1657402665]
 visible = false
+shape = SubResource("CircleShape2D_acosf")
+
+[node name="HealthComponent" type="Node" parent="." unique_id=637961201]
+script = ExtResource("3_vblcn")
+max_health = 10
+
+[node name="Hurtbox" type="Area2D" parent="." unique_id=1144134796]
+script = ExtResource("4_xkbvl")
+
+[node name="HurtboxCollisionShape" type="CollisionShape2D" parent="Hurtbox" unique_id=2142431834]
+shape = SubResource("CircleShape2D_hurtbox")
+
+[node name="DetectionArea" type="Area2D" parent="." unique_id=729539970]
+monitorable = false
+
+[node name="DetectionAreaCollisionShape" type="CollisionShape2D" parent="DetectionArea" unique_id=1893339714]
+shape = SubResource("CircleShape2D_detection")
+
+[node name="ContactDamage" type="Area2D" parent="." unique_id=1250564692]
+script = ExtResource("5_w9x2k")
+
+[node name="ContactDamageCollisionShape" type="CollisionShape2D" parent="ContactDamage" unique_id=346880975]
 shape = SubResource("CircleShape2D_acosf")
