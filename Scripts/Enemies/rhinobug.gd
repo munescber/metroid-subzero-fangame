@@ -6,6 +6,7 @@ extends CharacterBody2D
 
 @export var max_health: int = 5
 @export var contact_damage: int = 1
+@export var debug_enabled: bool = false
 const SPEED := 40.0
 
 # Node that contains all patrol points (Marker2D nodes).
@@ -63,22 +64,27 @@ func _ready():
 	# Check if PatrolPoints was assigned.
 	if patrol_points_node == null:
 		push_error("Enemy: PatrolPoints node not assigned.")
-		print("patrol_points is NULL")
+		if debug_enabled:
+			print("patrol_points is NULL")
 		return
 
-	print("Patrol node found:", patrol_points_node.name)
-	print("Children found:", patrol_points_node.get_child_count())
+	if debug_enabled:
+		print("Patrol node found:", patrol_points_node.name)
+		print("Children found:", patrol_points_node.get_child_count())
 
 	# Read every Marker2D.
 	for child in patrol_points_node.get_children():
 
-		print("Child:", child.name, " Type:", child.get_class())
+		if debug_enabled:
+			print("Child:", child.name, " Type:", child.get_class())
 
 		if child is Marker2D:
 			point_positions.append(child.global_position)
-			print("Added patrol point:", child.global_position)
+			if debug_enabled:
+				print("Added patrol point:", child.global_position)
 
-	print("Total patrol points:", point_positions.size())
+	if debug_enabled:
+		print("Total patrol points:", point_positions.size())
 
 	if point_positions.size() < 2:
 		push_error("Enemy needs at least two patrol points.")
@@ -167,19 +173,22 @@ func _on_timer_timeout() -> void:
 
 
 func take_damage(amount: int, source = null) -> void:
-	print_debug("[Rhinobug] take_damage called. amount=", amount, " source=", source)
+	if debug_enabled:
+		print_debug("[Rhinobug] take_damage called. amount=", amount, " source=", source)
 	if health_comp:
 		health_comp.take_damage(amount, source)
 
 func _on_health_damaged(amount: int, new_health: int) -> void:
-	print_debug("[Rhinobug] damaged: ", amount, "->", new_health)
+	if debug_enabled:
+		print_debug("[Rhinobug] damaged: ", amount, "->", new_health)
 	# flash red briefly
 	sprite.modulate = Color(1,0.5,0.5,1)
 	if timer:
 		timer.start(0.12)
 
 func _on_health_died() -> void:
-	print_debug("[Rhinobug] died")
+	if debug_enabled:
+		print_debug("[Rhinobug] died")
 	# play death effect then remove
 	is_dying = true
 	# disable collisions

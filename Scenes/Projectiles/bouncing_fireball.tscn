@@ -2,30 +2,64 @@
 
 [ext_resource type="Script" uid="uid://cyvd0qnlnnnhx" path="res://Scripts/Projectiles/bouncing_fireball.gd" id="1_bounce"]
 [ext_resource type="Texture2D" uid="uid://ce0s8fpjo344b" path="res://Spritesheets/phantoon_flames.png" id="2_flames"]
+[ext_resource type="Script" uid="uid://cjlps8ugi1jdq" path="res://Scripts/Common/hurtbox.gd" id="3_hurtbox"]
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_na406"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_yyexc"]
 atlas = ExtResource("2_flames")
-region = Rect2(0, 16, 8, 16)
+region = Rect2(16, 16, 8, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_k5bml"]
+atlas = ExtResource("2_flames")
+region = Rect2(24, 16, 8, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_il5ko"]
+atlas = ExtResource("2_flames")
+region = Rect2(32, 16, 8, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_x4g86"]
+atlas = ExtResource("2_flames")
+region = Rect2(0, 32, 8, 16)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_7wsrk"]
 atlas = ExtResource("2_flames")
-region = Rect2(8, 16, 8, 16)
+region = Rect2(24, 0, 8, 16)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_34x33"]
 atlas = ExtResource("2_flames")
-region = Rect2(16, 16, 8, 16)
+region = Rect2(32, 0, 8, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_kmjxa"]
+atlas = ExtResource("2_flames")
+region = Rect2(0, 16, 8, 16)
 
 [sub_resource type="SpriteFrames" id="FireballSpriteFrames"]
 animations = [{
 "frames": [{
 "duration": 1.0,
-"texture": SubResource("AtlasTexture_na406")
+"texture": SubResource("AtlasTexture_yyexc")
 }, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_k5bml")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_il5ko")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_x4g86")
+}],
+"loop": 0,
+"name": &"fade",
+"speed": 7.0
+}, {
+"frames": [{
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_7wsrk")
 }, {
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_34x33")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_kmjxa")
 }],
 "loop": 1,
 "name": &"idle",
@@ -38,12 +72,18 @@ radius = 6.0
 [sub_resource type="CircleShape2D" id="FireballHitboxShape"]
 radius = 6.0
 
+[sub_resource type="CircleShape2D" id="FireballHurtboxShape"]
+radius = 6.0
+
 [node name="BouncingFireball" type="CharacterBody2D" unique_id=793771655]
+collision_layer = 8
 script = ExtResource("1_bounce")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=242323503]
 sprite_frames = SubResource("FireballSpriteFrames")
-animation = &"idle"
+animation = &"fade"
+frame = 3
+frame_progress = 1.0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1393493148]
 position = Vector2(0, 2)
@@ -51,8 +91,17 @@ shape = SubResource("FireballShape")
 
 [node name="Hitbox" type="Area2D" parent="." unique_id=416894515]
 collision_layer = 8
-collision_mask = 0
+collision_mask = 16
 
 [node name="HitboxShape" type="CollisionShape2D" parent="Hitbox" unique_id=475790821]
 position = Vector2(0, 2)
 shape = SubResource("FireballHitboxShape")
+
+[node name="Hurtbox" type="Area2D" parent="." unique_id=416894516]
+collision_layer = 16
+collision_mask = 8
+script = ExtResource("3_hurtbox")
+
+[node name="HurtboxShape" type="CollisionShape2D" parent="Hurtbox" unique_id=475790822]
+position = Vector2(0, 2)
+shape = SubResource("FireballHurtboxShape")

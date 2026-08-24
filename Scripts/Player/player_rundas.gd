@@ -5,7 +5,7 @@ extends CharacterBody2D
 # ==================================================
 
 const MOVE_SPEED := 75.0
-const JUMP_FORCE := -300.0
+const JUMP_FORCE := -350.0
 const SHOOT_COOLDOWN := 0.20
 const BULLET_OFFSET := Vector2(12, 0)
 const AIM_UP_ANGLE := PI/4
@@ -35,6 +35,7 @@ var health_comp = null
 
 # Health and damage tuning
 @export var max_health: int = 100
+@export var debug_enabled: bool = false
 
 # Damage / invulnerability
 @export var invulnerability_time: float = 0.8
@@ -223,9 +224,11 @@ func update_animation():
 
 ### --- Phase 1: Damage shim and handlers ---
 func take_damage(amount: int, source = null) -> void:
-	print_debug("[Player] take_damage called. amount=", amount, " source=", source, " invulnerable=", invulnerable)
+	if debug_enabled:
+		print_debug("[Player] take_damage called. amount=", amount, " source=", source, " invulnerable=", invulnerable)
 	if invulnerable:
-		print_debug("[Player] Ignored due to invulnerability.")
+		if debug_enabled:
+			print_debug("[Player] Ignored due to invulnerability.")
 		return
 
 	# apply knockback using source if available
