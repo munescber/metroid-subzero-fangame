@@ -13,8 +13,9 @@ This repo-specific pattern keeps the movement body and the damage body separate,
 Core files
 -----------
 - `Scripts/Common/health_component.gd` — reusable health state for any actor. Emits `damaged(amount, new_health)` and `died()`.
-- `Scripts/Common/hurtbox.gd` — forwards `receive_hit(damage, source)` to the owning entity's `take_damage(amount, source)`.
-- `Scripts/Common/hitbox.gd` — shared contact hitbox logic with `damage`, `one_shot`, and `source` properties.
+- `Scripts/Common/hurtbox.gd` — forwards `receive_hit(damage, source)` to the owning entity's `take_damage(amount, source)`. Purely passive; relies on an overlapping Hitbox to call it, does not connect any signals itself.
+- `Scripts/Common/hitbox.gd` — shared damage-dealing area logic with `damage`, `one_shot`, and `source` properties. Used by Phantoon and Rhinobug's `ContactDamage` nodes and by all projectile `Hitbox` nodes.
+- `Scripts/Common/contact_damage.gd` — specialized damage-dealing area used by Ghost Covern. Functionally equivalent to `hitbox.gd` but adds explicit player-name/group checks and per-instance debug logging.
 - `Scripts/Player/player_rundas.gd` — player-specific `take_damage()` shim, invulnerability, knockback, and death handling.
 - `Scripts/Enemies/rhinobug.gd` — enemy health setup, contact damage config, and death visuals/cleanup.
 - `Scripts/Player/bullet.gd` — projectile physics collision is kept on the `CharacterBody2D`, while a child `Hitbox` Area2D handles combat overlap.
@@ -62,42 +63,9 @@ Current defaults in the repo are:
 - Player knockback x: `120`
 - Player knockback y: `140`
 
-Spatial Proximity Validation (feat/phantoon-logic)
----------------------------------------------------
-**How it works: Selective damage zones with distance checks**
-
-Introduced in the `feat/phantoon-logic` branch, this system allows entities to have damage-receiving areas (Hurtbox) that are spatially distinct from their contact damage areas (Hitbox). This is especially useful for boss fights where you want players to only take damage when hitting a specific weak point.
-
-**Key behaviors:**
-
-1. **ContactDamage Area2D** (layer 8, mask 16)
-   - Handles collision-based damage the entity *deals* to others (e.g., boss hurts player on contact)
-   - Uses full-body collision shape to detect player Hurtbox on contact
-   - Only triggers when player physically touches the enemy
-
-2. **Hurtbox Area2D** (layer 16, mask 8)
-   - Defines the damageable region the entity *receives*
-   - Can be positioned at a specific weak point (e.g., eye, head, core)
-   - Includes **spatial proximity validation** in `receive_hit()`
-
-3. **Spatial Proximity Validation**
-   - `Hurtbox.receive_hit()` checks the distance between the damage source and hurtbox center
-   - Only accepts damage if `source_distance <= ~10 units` from hurtbox
-   - Rejects damage from sources too far away (prevents accidental hits on body parts)
-   - Allows tight control over damage zones without requiring complex physics layers
-
-**Practical example (Phantoon boss):**
-- Boss body is full-size collision polygon (ContactDamage)
-- Boss eye is small circle at position (0, -2) with radius 5 (Hurtbox)
-- Bullets hitting the eye: distance < 10, damage accepted ✓
-- Bullets hitting the body: distance > 10, damage rejected ✗
-- Player touching boss: ContactDamage overlaps player Hurtbox, damage applied ✓
-
-**Collision layer configuration (feat/phantoon-logic):**
-- Layer 1: World
-- Layer 4: EnemyBody (CharacterBody2D)
-- Layer 8: Hitbox (ContactDamage for "damage dealt")
-- Layer 16: Hurtbox (for "damage received")
+Spatial Proximity Validation
+----------------------------
+**This section is historical and no longer reflects the current code.** An earlier version of `Hurtbox.receive_hit()` rejected hits from sources farther than ~10 units away, intended to support boss weak-point targeting (e.g. Phantoon's eye). That distance check caused legitimate bullet hits to be rejected and was removed. `Hurtbox.receive_hit()` now trusts the Area2D collision system: if a Hitbox overlaps a Hurtbox, the hit is always accepted. If per-region weak-point damage is needed again in the future, implement it with a dedicated small Hurtbox shape positioned at the weak point rather than a distance check in `receive_hit()`.
 
 Why both Hurtbox and Hitbox?
 ----------------------------
@@ -108,22 +76,37 @@ Why both Hurtbox and Hitbox?
 
 Project-specific collision setup
 --------------------------------
-The project uses dedicated physics layers for this separation:
+Godot layers/masks are bitmasks: layer N in the editor corresponds to bit value `2^(N-1)`. The project uses:
 
-- World: layer 1
-- PlayerBody: layer 2
-- EnemyBody: layer 3
-- Hitbox: layer 4
-- Hurtbox: layer 5
+| Editor layer # | Bit value | Purpose               |
+|----------------|-----------|------------------------|
+| 1              | 1         | World (terrain/walls) |
+| 2              | 2         | PlayerBody             |
+| 3              | 4         | EnemyBody              |
+| 4              | 8         | Hitbox (damage-dealing areas) |
+| 5              | 16        | Hurtbox (damage-receiving areas) |
 
-Typical setup:
+Standard node configuration:
+
+- Player `CharacterBody2D`: `collision_layer = 2`, `collision_mask = 1` (world only)
+- Player `Hurtbox`: `collision_layer = 16`, `collision_mask = 8`
+- Enemy `CharacterBody2D`: `collision_layer = 4`, `collision_mask = 1` (world only)
+- Enemy `ContactDamage`/`Hitbox`: `collision_layer = 8`, `collision_mask = 16` (detects player Hurtbox)
+- Enemy `Hurtbox`: `collision_layer = 16`, `collision_mask = 8` (detected by player bullets' Hitbox)
+- Bullet/projectile `CharacterBody2D` (physical body): `collision_layer = 8`, `collision_mask = 1` (world only — must NOT include the player/enemy body layers, otherwise the player or enemies will physically collide with the projectile like a wall instead of only taking damage through the Hurtbox/Hitbox overlap)
+- Bullet/projectile child `Hitbox`: `collision_layer = 8`, `collision_mask = 16` (detects Hurtboxes to damage)
+- Bullet/projectile child `Hurtbox` (so it can be destroyed by player bullets): `collision_layer = 16`, `collision_mask = 8`
+
+Ghost Covern's `ContactDamage` additionally sets `collision_mask = 18` (`16 | 2`) so it detects the player's Hurtbox *and* falls back to detecting the player's physical body directly, since `contact_damage.gd` implements both `_on_area_entered` and `_on_body_entered`. Its `DetectionArea` (used for haunting AI) sets `collision_mask = 16` to detect the player's Hurtbox and is non-monitorable so nothing else can detect it back.
+
+Typical setup summary:
 
 - Player body collision layer: `PlayerBody`
 - Enemy body collision layer: `EnemyBody`
 - Player hurtbox collision layer: `Hurtbox`, mask matches `Hitbox`
 - Enemy contact hitbox collision layer: `Hitbox`, mask matches `Hurtbox`
-- Bullet main body keeps `collision_layer = Hitbox` or projectile collision while wall collision continues on the `CharacterBody2D`
-- Bullet child `Hitbox` Area2D uses `collision_mask = Hurtbox`
+- Bullet/projectile main body: `collision_layer = Hitbox`, `collision_mask = World` only
+- Bullet/projectile child `Hitbox` Area2D: `collision_mask = Hurtbox`
 
 Practical usage notes
 ---------------------

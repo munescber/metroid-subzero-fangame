@@ -48,6 +48,8 @@ radius = 13.038404
 radius = 82.0
 
 [node name="GhostCovern" type="CharacterBody2D" unique_id=386100342]
+collision_layer = 4
+collision_mask = 1
 script = ExtResource("2_7s3g0")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1315883716]
@@ -63,6 +65,8 @@ script = ExtResource("3_vblcn")
 max_health = 10
 
 [node name="Hurtbox" type="Area2D" parent="." unique_id=1144134796]
+collision_layer = 16
+collision_mask = 8
 script = ExtResource("4_xkbvl")
 
 [node name="HurtboxCollisionShape" type="CollisionShape2D" parent="Hurtbox" unique_id=2142431834]
@@ -71,14 +75,16 @@ shape = SubResource("CircleShape2D_hurtbox")
 
 [node name="DetectionArea" type="Area2D" parent="." unique_id=729539970]
 visible = false
+collision_layer = 0
+collision_mask = 16
 monitorable = false
 
 [node name="DetectionAreaCollisionShape" type="CollisionShape2D" parent="DetectionArea" unique_id=1893339714]
 shape = SubResource("CircleShape2D_detection")
 
 [node name="ContactDamage" type="Area2D" parent="." unique_id=1250564692]
-collision_layer = 0
-collision_mask = 2
+collision_layer = 8
+collision_mask = 18
 monitorable = false
 script = ExtResource("5_w9x2k")
 

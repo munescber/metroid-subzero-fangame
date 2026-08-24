@@ -5,7 +5,7 @@ extends CharacterBody2D
 # ==================================================
 
 const MOVE_SPEED := 75.0
-const JUMP_FORCE := -300.0
+const JUMP_FORCE := -350.0
 const SHOOT_COOLDOWN := 0.20
 const BULLET_OFFSET := Vector2(12, 0)
 const AIM_UP_ANGLE := PI/4

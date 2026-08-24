@@ -5,6 +5,13 @@ class_name Phantoon
 # Debug toggle
 @export var debug_enabled: bool = false
 
+# Feature Toggles (disable specific attacks/states for testing)
+@export_category("Feature Toggles")
+@export var enable_dash: bool = true
+@export var enable_burst_attack: bool = true
+@export var enable_bounce_attack: bool = true
+@export var enable_intangibility: bool = true
+
 # Boss states
 enum BossState { ORBIT, PAUSE, DASH, ATTACK_BURST, ATTACK_BOUNCE, INTANGIBLE, DEAD }
 
@@ -56,6 +63,7 @@ var intangible_state_timer: float = 0.0
 
 # Attack configuration (Stage 8 & 9)
 @export var burst_projectile_count: int = 6
+@export var burst_spawn_offset: float = 24.0  # Distance from boss center each burst projectile spawns at
 @export var phase_1_burst_speed: float = 100.0
 @export var phase_2_burst_speed: float = 150.0
 @export var phase_1_burst_rotation: float = 0.0
@@ -126,7 +134,7 @@ func _physics_process(delta: float) -> void:
 			state_timer = 0.0
 	
 	# Handle intangible scheduling (all states except dead)
-	if current_state != BossState.DEAD:
+	if enable_intangibility and current_state != BossState.DEAD:
 		intangible_timer += delta
 		if intangible_timer >= intangible_interval and current_state != BossState.INTANGIBLE:
 			enter_intangible_state()
@@ -176,6 +184,11 @@ func update_orbit_movement(delta: float) -> void:
 func update_pause_state(delta: float) -> void:
 	state_timer += delta
 	if state_timer >= pause_duration:
+		if not enable_dash:
+			# Skip the dash entirely and attack from the current position
+			state_timer = 0.0
+			perform_attack_selection()
+			return
 		# Transition to dash
 		current_state = BossState.DASH
 		state_timer = 0.0
@@ -194,23 +207,34 @@ func update_dash_movement(delta: float) -> void:
 	global_position = global_position.lerp(dash_target, progress)
 	
 	if progress >= 1.0:
-		# After dash, trigger an attack
-		orbit_angle = (dash_target - arena_center).angle()
-		
-		# Alternate between burst and bounce attacks
-		# Phase 1: Mostly bursts with occasional bounces (30% chance bounce)
-		# Phase 2: More balanced (50% chance bounce)
-		var bounce_chance = 0.3 if phase == 1 else 0.5
-		
-		if randf() < bounce_chance:
-			spawn_bounce_attack()
-			current_state = BossState.ATTACK_BOUNCE
-		else:
-			spawn_burst_attack()
-			current_state = BossState.ATTACK_BURST
-		
+		perform_attack_selection()
+
+
+func perform_attack_selection() -> void:
+	"""Choose and launch an attack (burst and/or bounce) based on enabled toggles, then return to orbit if none are enabled."""
+	orbit_angle = (global_position - arena_center).angle()
+	
+	if not enable_burst_attack and not enable_bounce_attack:
+		# No attacks enabled, just return to orbit
+		current_state = BossState.ORBIT
 		state_timer = 0.0
-		attack_timer = 0.0  # Reset attack timer for next orbit cycle
+		attack_timer = 0.0
+		return
+	
+	# Phase 1: Mostly bursts with occasional bounces (30% chance bounce)
+	# Phase 2: More balanced (50% chance bounce)
+	var bounce_chance = 0.3 if phase == 1 else 0.5
+	var do_bounce = enable_bounce_attack and (not enable_burst_attack or randf() < bounce_chance)
+	
+	if do_bounce:
+		spawn_bounce_attack()
+		current_state = BossState.ATTACK_BOUNCE
+	else:
+		spawn_burst_attack()
+		current_state = BossState.ATTACK_BURST
+	
+	state_timer = 0.0
+	attack_timer = 0.0  # Reset attack timer for next orbit cycle
 
 
 func update_intangible_state(delta: float) -> void:
@@ -295,10 +319,10 @@ func spawn_burst_attack() -> void:
 		var angle = (i * angle_step) + rotation_offset
 		var direction = Vector2(cos(angle), sin(angle))
 		
-		# Spawn projectile
+		# Spawn projectile just outside the boss's own sprite/collision
 		var projectile = radial_projectile_scene.instantiate()
 		get_parent().add_child(projectile)
-		projectile.global_position = global_position
+		projectile.global_position = global_position + direction * burst_spawn_offset
 		
 		# Configure projectile
 		if projectile.has_method("launch"):

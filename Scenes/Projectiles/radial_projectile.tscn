@@ -2,30 +2,73 @@
 
 [ext_resource type="Script" uid="uid://do4sdp86ap6vt" path="res://Scripts/Projectiles/radial_projectile.gd" id="1_radial"]
 [ext_resource type="Texture2D" uid="uid://ce0s8fpjo344b" path="res://Spritesheets/phantoon_flames.png" id="2_flames"]
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_mgcbm"]
-atlas = ExtResource("2_flames")
-region = Rect2(0, 16, 8, 16)
+[ext_resource type="Script" uid="uid://cjlps8ugi1jdq" path="res://Scripts/Common/hurtbox.gd" id="3_hurtbox"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_7wweh"]
 atlas = ExtResource("2_flames")
-region = Rect2(8, 16, 8, 16)
+region = Rect2(24, 0, 8, 16)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_ddf66"]
 atlas = ExtResource("2_flames")
+region = Rect2(32, 0, 8, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_bakny"]
+atlas = ExtResource("2_flames")
+region = Rect2(0, 16, 8, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_kals7"]
+atlas = ExtResource("2_flames")
 region = Rect2(16, 16, 8, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_w7dnk"]
+atlas = ExtResource("2_flames")
+region = Rect2(24, 16, 8, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_psqxg"]
+atlas = ExtResource("2_flames")
+region = Rect2(32, 16, 8, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_gm8bj"]
+atlas = ExtResource("2_flames")
+region = Rect2(0, 32, 8, 16)
 
 [sub_resource type="SpriteFrames" id="RadialProjectileSpriteFrames"]
 animations = [{
 "frames": [{
 "duration": 1.0,
-"texture": SubResource("AtlasTexture_mgcbm")
+"texture": SubResource("AtlasTexture_7wweh")
 }, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ddf66")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_bakny")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_kals7")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_w7dnk")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_psqxg")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_gm8bj")
+}],
+"loop": 0,
+"name": &"fade",
+"speed": 7.0
+}, {
+"frames": [{
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_7wweh")
 }, {
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_ddf66")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_bakny")
 }],
 "loop": 1,
 "name": &"idle",
@@ -38,19 +81,31 @@ radius = 6.0
 [sub_resource type="CircleShape2D" id="RadialHitboxShape"]
 radius = 8.0
 
+[sub_resource type="CircleShape2D" id="RadialHurtboxShape"]
+radius = 8.0
+
 [node name="RadialProjectile" type="CharacterBody2D" unique_id=1564337478]
+collision_layer = 8
 script = ExtResource("1_radial")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1703456170]
 sprite_frames = SubResource("RadialProjectileSpriteFrames")
-animation = &"idle"
+animation = &"fade"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1474451492]
 shape = SubResource("RadialProjectileShape")
 
 [node name="Hitbox" type="Area2D" parent="." unique_id=196911182]
 collision_layer = 8
-collision_mask = 0
+collision_mask = 16
 
 [node name="HitboxShape" type="CollisionShape2D" parent="Hitbox" unique_id=44648348]
 shape = SubResource("RadialHitboxShape")
+
+[node name="Hurtbox" type="Area2D" parent="." unique_id=196911183]
+collision_layer = 16
+collision_mask = 8
+script = ExtResource("3_hurtbox")
+
+[node name="HurtboxShape" type="CollisionShape2D" parent="Hurtbox" unique_id=44648349]
+shape = SubResource("RadialHurtboxShape")
