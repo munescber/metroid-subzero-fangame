@@ -2,6 +2,9 @@ extends CharacterBody2D
 
 class_name BouncingFireball
 
+# Debug toggle
+@export var debug_enabled: bool = false
+
 const LIFETIME = 10.0
 const MAX_BOUNCES = 5
 
@@ -61,7 +64,8 @@ func _physics_process(delta: float) -> void:
 				velocity.y = -abs(velocity.y) * 0.6  # Reduce bounce height (was 0.7)
 				bounce_count += 1
 				horizontal_velocity *= 0.7  # Reduce horizontal speed more (was 0.8)
-				print_debug("[Fireball] Bounce #", bounce_count, " | velocity.y: ", velocity.y)
+				if debug_enabled:
+					print_debug("[Fireball] Bounce #", bounce_count, " | velocity.y: ", velocity.y)
 			else:
 				# Max bounces reached, destroy
 				queue_free()
@@ -93,4 +97,5 @@ func _on_area_entered(area: Area2D) -> void:
 		area.call("receive_hit", damage, self)
 		has_hit_player = true
 		# Don't destroy immediately - fireball continues bouncing
-		print_debug("[Fireball] Hit player!")
+		if debug_enabled:
+			print_debug("[Fireball] Hit player!")

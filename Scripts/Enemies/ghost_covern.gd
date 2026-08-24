@@ -2,6 +2,9 @@ extends CharacterBody2D
 
 class_name GhostCovern
 
+# Debug toggle
+@export var debug_enabled: bool = false
+
 # ==============================================================================
 # STATE MACHINE
 # ==============================================================================
@@ -73,6 +76,12 @@ var intangible_cooldown_timer: float = 0.0
 
 @export_category("Health")
 @export var max_health: int = 10
+@export var contact_damage_value: int = 1
+
+# Death animation
+var is_dying: bool = false
+var death_timer: float = 0.0
+var death_duration: float = 0.5  # Time to fade out
 
 # ==============================================================================
 # NODE REFERENCES
@@ -82,6 +91,7 @@ var intangible_cooldown_timer: float = 0.0
 @onready var health: HealthComponent = $HealthComponent
 @onready var hurtbox: Area2D = $Hurtbox
 @onready var detection_area: Area2D = $DetectionArea
+@onready var contact_damage: Node = $ContactDamage
 
 # ==============================================================================
 # INITIALIZATION
@@ -93,6 +103,15 @@ func _ready() -> void:
 	health.current_health = max_health
 	health.damaged.connect(_on_health_damaged)
 	health.died.connect(_on_health_died)
+	
+	# Configure contact damage (ghost touching player)
+	if contact_damage:
+		contact_damage.damage = contact_damage_value
+		contact_damage.one_shot = false  # Continuous damage, not one-shot
+		contact_damage.source = self
+		contact_damage.debug_enabled = debug_enabled
+		if debug_enabled:
+			print_debug("[GhostCovern] ContactDamage initialized: damage=", contact_damage_value, " source=", self)
 	
 	# Connect detection area signals if detection is enabled
 	if enable_detection and detection_area:
@@ -116,6 +135,20 @@ func _ready() -> void:
 # ==============================================================================
 
 func _physics_process(delta: float) -> void:
+	# Handle death animation
+	if is_dying:
+		death_timer += delta
+		# Apply gravity during death (fall down)
+		current_velocity.y += 200.0 * delta
+		# Fade out sprite
+		if sprite:
+			var fade_progress = death_timer / death_duration
+			sprite.modulate.a = lerp(1.0, 0.0, fade_progress)
+		# Despawn after death duration
+		if death_timer >= death_duration:
+			queue_free()
+			return
+	
 	match current_state:
 		State.WANDERING:
 			update_wandering_state(delta)
@@ -234,6 +267,10 @@ func update_intangible_state(delta: float) -> void:
 	if hurtbox:
 		hurtbox.monitoring = false
 	
+	# Disable contact damage during intangibility
+	if contact_damage:
+		contact_damage.monitoring = false
+	
 	# Check if intangible duration has expired
 	if intangible_state_timer >= intangible_duration:
 		exit_intangible_state()
@@ -281,6 +318,10 @@ func enter_intangible_state() -> void:
 	is_intangible = true
 	intangible_state_timer = 0.0
 	intangible_cooldown_timer = 0.0
+	
+	# Disable contact damage during intangibility
+	if contact_damage:
+		contact_damage.monitoring = false
 
 
 func exit_intangible_state() -> void:
@@ -293,9 +334,11 @@ func exit_intangible_state() -> void:
 	if sprite:
 		sprite.modulate = Color(1, 1, 1, 1)
 	
-	# Re-enable hurtbox
+	# Re-enable hurtbox and contact damage
 	if hurtbox:
 		hurtbox.monitoring = true
+	if contact_damage:
+		contact_damage.monitoring = true
 	
 	# Return to haunting if player is nearby, otherwise wander
 	if enable_haunting and enable_detection and player_detected and player:
@@ -356,7 +399,8 @@ func take_damage(damage: int, source = null) -> void:
 
 func _on_health_damaged(amount: int, new_health: int) -> void:
 	"""Handle damage signal from HealthComponent."""
-	print_debug("[GhostCovern] Took damage: %d | Health: %d/%d" % [amount, new_health, max_health])
+	if debug_enabled:
+		print_debug("[GhostCovern] Took damage: %d | Health: %d/%d" % [amount, new_health, max_health])
 	
 	# Visual feedback: sprite flash
 	if sprite:
@@ -368,13 +412,19 @@ func _on_health_damaged(amount: int, new_health: int) -> void:
 
 func _on_health_died() -> void:
 	"""Handle death signal from HealthComponent."""
-	print_debug("[GhostCovern] Ghost defeated!")
+	if debug_enabled:
+		print_debug("[GhostCovern] Ghost defeated!")
+	is_dying = true
 	current_state = State.DEAD
 	current_velocity = Vector2.ZERO
+	death_timer = 0.0
 	
-	# Fade out ghost
-	if sprite:
-		sprite.modulate = Color(1, 1, 1, 0)
+	# Disable collisions immediately
+	for child in get_children():
+		if child is CollisionShape2D:
+			child.set_deferred("disabled", true)
+		elif child is Area2D:
+			child.set_deferred("monitoring", false)
 
 
 # ==============================================================================

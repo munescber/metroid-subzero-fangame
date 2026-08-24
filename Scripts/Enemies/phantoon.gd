@@ -2,6 +2,9 @@ extends CharacterBody2D
 
 class_name Phantoon
 
+# Debug toggle
+@export var debug_enabled: bool = false
+
 # Boss states
 enum BossState { ORBIT, PAUSE, DASH, ATTACK_BURST, ATTACK_BOUNCE, INTANGIBLE, DEAD }
 
@@ -36,6 +39,7 @@ var dash_target: Vector2 = Vector2.ZERO
 @onready var health: HealthComponent = $HealthComponent
 @onready var damage_flash_timer: Timer = $DamageFlashTimer
 @onready var contact_damage: Node = $ContactDamage
+@onready var hurtbox: Area2D = $Hurtbox
 
 # Contact damage configuration
 @export var contact_damage_value: int = 1
@@ -61,8 +65,10 @@ var intangible_state_timer: float = 0.0
 @export var bounce_projectile_speed: float = 50.0
 @export var bounce_gravity: float = 300.0
 
-# Hurtbox reference (for intangible state)
-@onready var hurtbox: Area2D = $Hurtbox
+# Death state
+var is_dying: bool = false
+var death_timer: float = 0.0
+var death_duration: float = 0.5  # Time to fade out
 
 
 func _ready() -> void:
@@ -124,6 +130,18 @@ func _physics_process(delta: float) -> void:
 		intangible_timer += delta
 		if intangible_timer >= intangible_interval and current_state != BossState.INTANGIBLE:
 			enter_intangible_state()
+	
+	# Handle death animation
+	if is_dying:
+		death_timer += delta
+		# Fade out sprite
+		if sprite != null:
+			var fade_progress = death_timer / death_duration
+			sprite.modulate = Color(1, 1, 1, lerp(1.0, 0.0, fade_progress))
+		# Despawn after death duration
+		if death_timer >= death_duration:
+			queue_free()
+			return
 	
 	match current_state:
 		BossState.ORBIT:
@@ -214,14 +232,16 @@ func update_intangible_state(delta: float) -> void:
 
 
 func enter_intangible_state() -> void:
-	print_debug("[Phantoon] Entering intangible state!")
+	if debug_enabled:
+		print_debug("[Phantoon] Entering intangible state!")
 	current_state = BossState.INTANGIBLE
 	intangible_state_timer = 0.0
 	intangible_timer = 0.0  # Reset intangible timer for next cycle
 
 
 func exit_intangible_state() -> void:
-	print_debug("[Phantoon] Exiting intangible state!")
+	if debug_enabled:
+		print_debug("[Phantoon] Exiting intangible state!")
 	# Restore opacity
 	if sprite != null:
 		sprite.modulate = Color(1, 1, 1, 1)
@@ -259,10 +279,12 @@ func update_attack_bounce_state(delta: float) -> void:
 
 
 func spawn_burst_attack() -> void:
-	print_debug("[Phantoon] Spawning radial burst attack!")
+	if debug_enabled:
+		print_debug("[Phantoon] Spawning radial burst attack!")
 	
 	if radial_projectile_scene == null:
-		print_debug("[Phantoon] ERROR: radial_projectile_scene not loaded. Skipping attack.")
+		if debug_enabled:
+			print_debug("[Phantoon] ERROR: radial_projectile_scene not loaded. Skipping attack.")
 		return
 	
 	var projectile_speed = phase_1_burst_speed if phase == 1 else phase_2_burst_speed
@@ -286,10 +308,12 @@ func spawn_burst_attack() -> void:
 
 
 func spawn_bounce_attack() -> void:
-	print_debug("[Phantoon] Spawning bouncing fireball attack!")
+	if debug_enabled:
+		print_debug("[Phantoon] Spawning bouncing fireball attack!")
 	
 	if bounce_projectile_scene == null:
-		print_debug("[Phantoon] ERROR: bounce_projectile_scene not loaded. Skipping attack.")
+		if debug_enabled:
+			print_debug("[Phantoon] ERROR: bounce_projectile_scene not loaded. Skipping attack.")
 		return
 	
 	var fireball_count = phase_1_bounce_count if phase == 1 else phase_2_bounce_count
@@ -335,7 +359,8 @@ func check_phase_transition() -> void:
 func enter_phase_2() -> void:
 	phase = 2
 	phase_2_triggered = true
-	print_debug("[Phantoon] Entering Phase 2!")
+	if debug_enabled:
+		print_debug("[Phantoon] Entering Phase 2!")
 	
 	# Phase 2 modifications: Faster and more aggressive
 	orbit_speed *= 1.5  # Faster orbit
@@ -355,7 +380,8 @@ func enter_phase_2() -> void:
 # ============================================================================
 
 func _on_health_damaged(amount: int, new_health: int) -> void:
-	print_debug("[Phantoon] Took damage: ", amount, " | Health: ", new_health, "/", max_health)
+	if debug_enabled:
+		print_debug("[Phantoon] Took damage: ", amount, " | Health: ", new_health, "/", max_health)
 	# Visual feedback: sprite flash red briefly
 	if sprite != null:
 		sprite.modulate = Color(1, 0.5, 0.5, 1)  # Red tint
@@ -363,10 +389,18 @@ func _on_health_damaged(amount: int, new_health: int) -> void:
 
 
 func _on_health_died() -> void:
-	print_debug("[Phantoon] Boss defeated!")
+	if debug_enabled:
+		print_debug("[Phantoon] Boss defeated!")
+	is_dying = true
 	current_state = BossState.DEAD
-	# Death behavior can be added here later
-	# For now, just stop moving
+	death_timer = 0.0
+	
+	# Disable collisions immediately
+	for child in get_children():
+		if child is CollisionShape2D:
+			child.set_deferred("disabled", true)
+		elif child is Area2D:
+			child.set_deferred("monitoring", false)
 
 
 # ============================================================================
