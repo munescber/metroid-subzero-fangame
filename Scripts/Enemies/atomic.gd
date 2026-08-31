@@ -336,7 +336,7 @@ func _transition_to_state(new_state: State) -> void:
 # GLOW/VISUAL UPDATES
 # ==============================================================================
 
-func _update_glow_intensity(delta: float) -> void:
+func _update_glow_intensity(_delta: float) -> void:
 	# Update electric field visual based on state and glow intensity
 	if electric_field_visual:
 		electric_field_visual.modulate.a = glow_intensity / 2.0

@@ -4,7 +4,7 @@
 [ext_resource type="PackedScene" uid="uid://j5gmhjrkkpwd" path="res://Scenes/Player/player.tscn" id="1_gtt1v"]
 [ext_resource type="Texture2D" uid="uid://3s2latr0exys" path="res://Tilesets/craters.png" id="2_5adr5"]
 [ext_resource type="PackedScene" uid="uid://dri1mvk6spx6b" path="res://Scenes/Enemies/rhinobug.tscn" id="4_a7sir"]
-[ext_resource type="PackedScene" uid="uid://cir4pmo4aqvq0" path="res://Scenes/Enemies/phantoon.tscn" id="5_6mts1"]
+[ext_resource type="PackedScene" uid="uid://dh3rhndrlhykj" path="res://Scenes/Enemies/atomic.tscn" id="6_owoyi"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_afmh5"]
 
@@ -91,5 +91,5 @@ position = Vector2(-38, -3)
 [node name="PointB" type="Marker2D" parent="rhinobug/PatrolPoints" unique_id=262559658]
 position = Vector2(41, -3)
 
-[node name="mini_phantoon" parent="." unique_id=1728258884 instance=ExtResource("5_6mts1")]
-position = Vector2(-45, 57)
+[node name="Atomic" parent="." unique_id=1232447307 instance=ExtResource("6_owoyi")]
+position = Vector2(-39, 53)
