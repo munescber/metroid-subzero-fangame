@@ -1,12 +1,12 @@
 [gd_scene format=3 uid="uid://dh3rhndrlhykj"]
 
 [ext_resource type="Texture2D" uid="uid://de54jh6mlvqfh" path="res://Spritesheets/spritesheet_atomic.png" id="1_tkdwp"]
-[ext_resource type="Texture2D" uid="uid://dsvn2cpmo2pno" path="res://Spritesheets/spritesheet_atomic_field.png" id="2_field"]
-[ext_resource type="Script" uid="uid://iktbh6r71vei" path="res://Scripts/Common/health_component.gd" id="3_health"]
+[ext_resource type="Texture2D" uid="uid://3b3uqbpqcjvm" path="res://Spritesheets/spritesheet_atomic_field.png" id="2_field"]
 [ext_resource type="Script" uid="uid://dis5epw6hpsgu" path="res://Scripts/Common/hitbox.gd" id="4_hitbox"]
-[ext_resource type="Script" uid="uid://c3c0xff4hp2wj" path="res://Scripts/Common/hurtbox.gd" id="5_hurtbox"]
-[ext_resource type="Shader" path="res://Scenes/Effects/atomic_electric_field.gdshader" id="6_shader"]
-[ext_resource type="Script" path="res://Scripts/Enemies/atomic.gd" id="7_script"]
+[ext_resource type="Script" uid="uid://c3c0xff4hp2wj" path="res://Scripts/Common/health_component.gd" id="5_health"]
+[ext_resource type="Script" uid="uid://cjlps8ugi1jdq" path="res://Scripts/Common/hurtbox.gd" id="6_hurtbox"]
+[ext_resource type="Shader" uid="uid://c0rjdmj6wek58" path="res://Scenes/Effects/atomic_electric_field.gdshader" id="7_shader"]
+[ext_resource type="Script" uid="uid://b4c5f3x4ws6ag" path="res://Scripts/Enemies/atomic.gd" id="8_script"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_fp6uk"]
 atlas = ExtResource("1_tkdwp")
@@ -41,70 +41,106 @@ animations = [{
 }]
 
 [sub_resource type="CircleShape2D" id="PhysicsShape"]
-radius = 8.0
+radius = 9.0
 
-[sub_resource type="CircleShape2D" id="HurtboxShape"]
-radius = 8.0
+[sub_resource type="ShaderMaterial" id="FieldMaterial"]
+shader = ExtResource("7_shader")
+shader_parameter/pulse_speed = 3.0
+shader_parameter/base_intensity = 1.0
+shader_parameter/dark_green = Vector3(0, 0.345, 0)
+shader_parameter/yellow = Vector3(0.973, 0.722, 0)
+shader_parameter/white = Vector3(0.988, 0.988, 0.988)
 
-[sub_resource type="CircleShape2D" id="ContactDamageShape"]
-radius = 10.0
+[sub_resource type="AtlasTexture" id="AtlasTexture_pio2i"]
+atlas = ExtResource("2_field")
+region = Rect2(48, 48, 48, 48)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_y2l4w"]
+atlas = ExtResource("2_field")
+region = Rect2(48, 96, 48, 48)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_o77p7"]
+atlas = ExtResource("2_field")
+region = Rect2(0, 96, 48, 48)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_acosf"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pio2i")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_y2l4w")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_o77p7")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_y2l4w")
+}],
+"loop": 1,
+"name": &"default",
+"speed": 3.0
+}]
 
 [sub_resource type="CircleShape2D" id="ElectricFieldShape"]
 radius = 24.0
 
-[sub_resource type="ShaderMaterial" id="FieldMaterial"]
-shader = ExtResource("6_shader")
-shader_parameter/pulse_speed = 3.0
-shader_parameter/base_intensity = 1.0
-shader_parameter/dark_green = Vector3(0.0, 0.345, 0.0)
-shader_parameter/yellow = Vector3(0.973, 0.722, 0.0)
-shader_parameter/white = Vector3(0.988, 0.988, 0.988)
+[sub_resource type="CircleShape2D" id="ContactDamageShape"]
+radius = 9.0
+
+[sub_resource type="CircleShape2D" id="HurtboxShape"]
 
 [node name="Atomic" type="CharacterBody2D" unique_id=1232447307]
-script = ExtResource("7_script")
+script = ExtResource("8_script")
 
-[node name="Visuals" type="Node2D" parent="." unique_id=3256187652]
+[node name="Visuals" type="Node2D" parent="." unique_id=-1038779644]
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="Visuals" unique_id=1957968211]
 sprite_frames = SubResource("SpriteFrames_gbtge")
-animation = &"default"
 frame_progress = 0.6045644
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1464812270]
 shape = SubResource("PhysicsShape")
 
-[node name="ElectricFieldVisual" type="Sprite2D" parent="."]
-visible = false
-scale = Vector2(3, 3)
-texture = ExtResource("2_field")
+[node name="ElectricFieldVisual" type="AnimatedSprite2D" parent="." unique_id=1557937966]
 material = SubResource("FieldMaterial")
+scale = Vector2(1, 1.052)
+sprite_frames = SubResource("SpriteFrames_acosf")
+frame_progress = 0.24567068
 
-[node name="ElectricField" type="Area2D" parent="."]
+[node name="ElectricField" type="Area2D" parent="." unique_id=2097612644]
 collision_layer = 8
 collision_mask = 16
 monitoring = false
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="ElectricField"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ElectricField" unique_id=1741151884]
 shape = SubResource("ElectricFieldShape")
 
 [node name="HealthComponent" type="Node" parent="." unique_id=1567525673]
-script = ExtResource("3_health")
+script = ExtResource("5_health")
 
-[node name="ContactDamage" type="Area2D" parent="."]
+[node name="ContactDamage" type="Area2D" parent="." unique_id=1470312677]
+visible = false
 collision_layer = 8
 collision_mask = 16
 script = ExtResource("4_hitbox")
 damage = 2
 one_shot = false
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="ContactDamage"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ContactDamage" unique_id=804922576]
+visible = false
 shape = SubResource("ContactDamageShape")
 
-[node name="Hurtbox" type="Area2D" parent="."]
+[node name="Hurtbox" type="Area2D" parent="." unique_id=1380368204]
 visible = false
 collision_layer = 16
 collision_mask = 8
-script = ExtResource("5_hurtbox")
+script = ExtResource("6_hurtbox")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox" unique_id=1734196138]
+visible = false
 shape = SubResource("HurtboxShape")
+
+[node name="DamageFlashTimer" type="Timer" parent="." unique_id=557924310]
+one_shot = true

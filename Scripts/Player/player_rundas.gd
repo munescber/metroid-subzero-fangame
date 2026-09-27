@@ -30,8 +30,7 @@ var dash_direction: float = 1.0
 var is_dashing: bool = false
 
 # Health component (instantiated at runtime)
-const HealthComponent = preload("res://Scripts/Common/health_component.gd")
-var health_comp = null
+var health_comp: HealthComponent = null
 
 # Health and damage tuning
 @export var max_health: int = 100

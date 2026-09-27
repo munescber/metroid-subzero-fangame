@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://cw7bfx73i6fak"]
 
 [ext_resource type="Texture2D" uid="uid://cgvulglh6vp64" path="res://Spritesheets/ghost_covern_spritesheet.png" id="1_3exjd"]
-[ext_resource type="Script" uid="uid://bs336spodbns3" path="res://Scripts/Enemies/ghost_covern.gd" id="2_7s3g0"]
+[ext_resource type="Script" uid="uid://fkjet3om5ric" path="res://Scripts/Enemies/ghost_covern.gd" id="2_7s3g0"]
 [ext_resource type="Script" uid="uid://c3c0xff4hp2wj" path="res://Scripts/Common/health_component.gd" id="3_vblcn"]
 [ext_resource type="Script" uid="uid://cjlps8ugi1jdq" path="res://Scripts/Common/hurtbox.gd" id="4_xkbvl"]
 [ext_resource type="Script" uid="uid://bhmvadygcndqr" path="res://Scripts/Common/contact_damage.gd" id="5_w9x2k"]

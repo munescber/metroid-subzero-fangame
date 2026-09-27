@@ -49,7 +49,6 @@ func _on_area_entered(area: Area2D) -> void:
 				print_debug("[ContactDamage] Hitting player directly with ", damage, " damage")
 			parent.call("take_damage", damage, source)
 			return
-			return
 	
 	# For anything else (including bullets), just ignore
 	# Don't apply damage to the boss or process bullets here

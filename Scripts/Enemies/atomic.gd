@@ -20,12 +20,23 @@ enum State {
 var current_state: State = State.FLOATING
 
 # ==============================================================================
-# HEALTH & DAMAGE
+# FEATURE TOGGLES (disable specific behaviors for testing)
 # ==============================================================================
+
+@export_category("Feature Toggles")
+@export var enable_wandering: bool = true
+@export var enable_attacks: bool = true
+@export var enable_electric_field: bool = true
 
 @export var max_health: int = 10
 @export var contact_damage: int = 2
 @onready var health_comp: HealthComponent = $HealthComponent
+
+# ==============================================================================
+# DEBUG
+# ==============================================================================
+
+@export var debug_enabled: bool = false
 
 # ==============================================================================
 # MOVEMENT & FLOATING
@@ -92,15 +103,24 @@ var field_active: bool = false
 
 @onready var visuals: Node2D = $Visuals
 @onready var animated_sprite: AnimatedSprite2D = $Visuals/AnimatedSprite2D
-@onready var electric_field_visual: Sprite2D = $ElectricFieldVisual
+@onready var electric_field_visual: AnimatedSprite2D = $ElectricFieldVisual
 @onready var electric_field_area: Area2D = $ElectricField
 @onready var hurtbox: Area2D = $Hurtbox
+@onready var damage_flash_timer: Timer = $DamageFlashTimer
 
 # ==============================================================================
-# DEBUG
+# DEATH
 # ==============================================================================
 
-@export var debug_enabled: bool = false
+@export var death_duration: float = 0.5
+var is_dying: bool = false
+var death_timer: float = 0.0
+
+# ==============================================================================
+# DEBUG (moved here for organization)
+# ==============================================================================
+
+# @export var debug_enabled: bool = false  # Already declared above with other exports
 
 # ==============================================================================
 # LIFECYCLE
@@ -108,12 +128,16 @@ var field_active: bool = false
 
 func _ready() -> void:
 	# Initialize health component
-	health_comp.set_max_health(max_health)
+	health_comp.max_health = max_health
+	health_comp.current_health = max_health
 	health_comp.connect("damaged", Callable(self, "_on_health_damaged"))
 	health_comp.connect("died", Callable(self, "_on_health_died"))
+	damage_flash_timer.connect("timeout", Callable(self, "_on_damage_flash_timer_timeout"))
 	
 	# Find player
-	player = get_tree().get_first_node_in_group("player")
+	player = _find_player()
+	if debug_enabled:
+		print_debug("[Atomic] Ready. Player found: ", player, " | enable_attacks=", enable_attacks, " enable_electric_field=", enable_electric_field)
 	if not player and debug_enabled:
 		push_warning("Atomic: Player not found in 'player' group")
 	
@@ -122,8 +146,8 @@ func _ready() -> void:
 	collision_mask = 1   # World only
 	
 	# Setup electric field area
-	electric_field_area.collision_layer = 8   # Hitbox
-	electric_field_area.collision_mask = 16   # Hurtbox
+	electric_field_area.collision_layer = 8    # Hitbox
+	electric_field_area.collision_mask = 16 | 8 # Hurtbox (player) + Hitbox (missiles)
 	electric_field_area.connect("area_entered", Callable(self, "_on_electric_field_entered"))
 	
 	# Setup hurtbox
@@ -137,6 +161,15 @@ func _ready() -> void:
 	electric_field_area.set_deferred("monitoring", false)
 
 func _physics_process(delta: float) -> void:
+	if is_dying:
+		death_timer += delta
+		var fade_progress = death_timer / death_duration
+		if animated_sprite:
+			animated_sprite.modulate.a = lerp(1.0, 0.0, fade_progress)
+		if death_timer >= death_duration:
+			queue_free()
+		return
+	
 	if current_state == State.DEAD:
 		return
 	
@@ -178,17 +211,28 @@ func _physics_process(delta: float) -> void:
 # ==============================================================================
 
 func _update_floating(delta: float) -> void:
-	# Detect player
+	# Fallback: re-attempt player lookup if it was never found at _ready()
+	if not player:
+		player = _find_player()
+		if player and debug_enabled:
+			print_debug("[Atomic] Player found via fallback lookup: ", player)
+	
+	# Detect player (runs regardless of wandering toggle)
 	if player and not player_detected:
 		var dist_to_player = global_position.distance_to(player.global_position)
 		if dist_to_player < detection_range:
 			player_detected = true
 			if debug_enabled:
-				print("Atomic: Player detected!")
+				print_debug("[Atomic] Player detected at distance: ", dist_to_player)
 	
 	# If player detected and conditions met, start charging
 	if player_detected and cooldown_timer <= 0.0:
-		_transition_to_state(State.CHARGING)
+		if enable_attacks:
+			_transition_to_state(State.CHARGING)
+			return
+	
+	if not enable_wandering:
+		current_velocity *= 0.95
 		return
 	
 	# Update float behavior
@@ -197,6 +241,8 @@ func _update_floating(delta: float) -> void:
 	if float_timer <= 0.0:
 		_choose_new_float_target()
 		float_timer = float_change_interval
+		if debug_enabled:
+			print_debug("[Atomic] New wander target: ", float_target)
 	
 	# Move toward float target
 	var direction_to_target = (float_target - global_position).normalized()
@@ -211,6 +257,19 @@ func _choose_new_float_target() -> void:
 	var random_distance = randf_range(50.0, 120.0)
 	float_target = global_position + Vector2(cos(random_angle), sin(random_angle)) * random_distance
 
+# Group lookup can fail if the scene's group membership hasn't been picked up yet,
+# so fall back to duck-typing any player-script node in the current scene.
+func _find_player() -> Node2D:
+	var found = get_tree().get_first_node_in_group("player")
+	if found:
+		return found
+	var scene_root = get_tree().current_scene
+	if scene_root:
+		for child in scene_root.get_children():
+			if child.has_method("get_aim_direction") and child.has_method("take_damage"):
+				return child
+	return null
+
 # ==============================================================================
 # CHARGING STATE
 # ==============================================================================
@@ -220,6 +279,9 @@ func _update_charging(delta: float) -> void:
 	if player:
 		var direction_to_player = (player.global_position - global_position).normalized()
 		dash_direction = direction_to_player
+	
+		if charge_timer == 0.0 and debug_enabled:
+			print_debug("[Atomic] CHARGING towards player! Direction: ", dash_direction)
 	
 	# Reduce movement during charge
 	current_velocity *= 0.95
@@ -252,8 +314,13 @@ func _update_recovering(delta: float) -> void:
 	
 	cooldown_timer += delta
 	if cooldown_timer >= dash_cooldown:
-		# Transition to electric field sequence
-		_transition_to_state(State.ELECTRIC_CHARGING)
+		if debug_enabled:
+			print_debug("[Atomic] Recovering complete. enable_electric_field=", enable_electric_field)
+		# Transition to electric field sequence if enabled
+		if enable_electric_field:
+			_transition_to_state(State.ELECTRIC_CHARGING)
+		else:
+			_transition_to_state(State.COOLDOWN)
 
 # ==============================================================================
 # ELECTRIC CHARGING STATE
@@ -262,6 +329,9 @@ func _update_recovering(delta: float) -> void:
 func _update_electric_charging(delta: float) -> void:
 	current_velocity *= 0.95
 	glow_intensity = min(2.0, glow_intensity + 3.0 * delta)
+	
+	if electric_charge_timer == 0.0 and debug_enabled:
+		print_debug("[Atomic] CHARGING electric field! Intensity building...")
 	
 	electric_charge_timer += delta
 	if electric_charge_timer >= electric_charge_duration:
@@ -275,18 +345,34 @@ func _update_electric_field(delta: float) -> void:
 	current_velocity *= 0.98
 	glow_intensity = 2.0
 	
+	if electric_field_timer == 0.0 and debug_enabled:
+		print_debug("[Atomic] ELECTRIC FIELD ACTIVATED! Radius: ", electric_field_radius, " Damage: ", electric_field_damage)
+	
 	electric_field_timer += delta
 	if electric_field_timer >= electric_field_duration:
+		if debug_enabled:
+			print_debug("[Atomic] Electric field deactivating...")
 		_transition_to_state(State.COOLDOWN)
 
 func _on_electric_field_entered(area: Area2D) -> void:
 	if not field_active:
 		return
 	
+	var area_parent = area.get_parent()
+	
+	# Damage the player if their Hurtbox enters the field
+	if area_parent and area_parent.is_in_group("player") and area.has_method("receive_hit"):
+		if debug_enabled:
+			print_debug("[Atomic] Electric field hit player for ", electric_field_damage, " damage!")
+		area.call("receive_hit", electric_field_damage, self)
+		return
+	
 	# Destroy missiles/projectiles
 	if area.is_in_group("projectile") or area.name == "Hitbox":
-		if area.get_parent().has_method("take_damage"):
-			area.get_parent().queue_free()
+		if debug_enabled:
+			print_debug("[Atomic] Electric field destroyed projectile: ", area.name)
+		if area_parent and area_parent.has_method("take_damage"):
+			area_parent.queue_free()
 		else:
 			area.queue_free()
 
@@ -309,7 +395,7 @@ func _update_cooldown(delta: float) -> void:
 
 func _transition_to_state(new_state: State) -> void:
 	if debug_enabled:
-		print("Atomic: Transitioning from %s to %s" % [State.keys()[current_state], State.keys()[new_state]])
+		print_debug("[Atomic] State transition: %s → %s" % [State.keys()[current_state], State.keys()[new_state]])
 	
 	current_state = new_state
 	
@@ -319,6 +405,8 @@ func _transition_to_state(new_state: State) -> void:
 			charge_timer = 0.0
 		State.DASHING:
 			dash_timer = 0.0
+			if debug_enabled:
+				print_debug("[Atomic] DASH ATTACK! Speed: ", dash_speed, " Duration: ", dash_duration, "s")
 		State.RECOVERING:
 			cooldown_timer = 0.0
 		State.ELECTRIC_CHARGING:
@@ -331,6 +419,9 @@ func _transition_to_state(new_state: State) -> void:
 			electric_cooldown_timer = 0.0
 			field_active = false
 			electric_field_area.set_deferred("monitoring", false)
+			cooldown_timer = 0.0  # release the attack-trigger gate for the next cycle
+		State.FLOATING:
+			cooldown_timer = 0.0  # in case electric field was disabled and we skipped COOLDOWN's reset
 
 # ==============================================================================
 # GLOW/VISUAL UPDATES
@@ -339,6 +430,7 @@ func _transition_to_state(new_state: State) -> void:
 func _update_glow_intensity(_delta: float) -> void:
 	# Update electric field visual based on state and glow intensity
 	if electric_field_visual:
+		electric_field_visual.visible = glow_intensity > 0.01
 		electric_field_visual.modulate.a = glow_intensity / 2.0
 	
 	# Update field collision area size based on glow
@@ -356,23 +448,37 @@ func take_damage(amount: int, source = null) -> void:
 	
 	# Missiles cannot damage during electric field
 	if field_active and source and source.is_in_group("projectile"):
+		if debug_enabled:
+			print_debug("[Atomic] Projectile blocked by electric field! Immunity active.")
 		return
+	
+	if debug_enabled:
+		print_debug("[Atomic] Taking damage: ", amount, " from source: ", source)
 	
 	health_comp.take_damage(amount, source)
 
 func _on_health_damaged(amount: int, new_health: int) -> void:
 	if debug_enabled:
-		print("Atomic: Took %d damage! Health: %d/%d" % [amount, new_health, max_health])
+		print_debug("[Atomic] Took damage: ", amount, " | Health: ", new_health, "/", max_health)
+	# Visual feedback: sprite flash red briefly
+	if animated_sprite:
+		animated_sprite.modulate = Color(1, 0.5, 0.5, 1)
+		damage_flash_timer.start(0.12)
+
+func _on_damage_flash_timer_timeout() -> void:
+	if animated_sprite:
+		animated_sprite.modulate = Color(1, 1, 1, 1)
 
 func _on_health_died() -> void:
 	if debug_enabled:
-		print("Atomic: Died!")
+		print_debug("[Atomic] Defeated!")
 	_transition_to_state(State.DEAD)
+	is_dying = true
+	death_timer = 0.0
 	
 	# Disable collision and visibility
-	collision_layer = 0
-	collision_mask = 0
-	electric_field_area.set_deferred("monitoring", false)
-	
-	# TODO: Add death animation/effects
-	queue_free()
+	for child in get_children():
+		if child is CollisionShape2D:
+			child.set_deferred("disabled", true)
+		elif child is Area2D:
+			child.set_deferred("monitoring", false)
