@@ -86,6 +86,7 @@ animations = [{
 position = Vector2(1, 0)
 collision_layer = 2
 script = ExtResource("1_6t2vb")
+groups = ["player"]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=351996993]
 position = Vector2(-1.5, 0.5)

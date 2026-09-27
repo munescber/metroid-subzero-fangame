@@ -376,7 +376,7 @@ func take_damage(damage: int, source = null) -> void:
 
 func check_phase_transition() -> void:
 	if phase == 1 and not phase_2_triggered:
-		if health.current_health <= max_health / 2:
+		if health.current_health <= max_health / 2.0:
 			enter_phase_2()
 
 

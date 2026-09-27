@@ -45,7 +45,7 @@ func _ready():
 	sprite.play("walk")
 
 	# add HealthComponent at runtime using the exported health value
-	const HealthComponent = preload("res://Scripts/Common/health_component.gd")
+
 	health_comp = HealthComponent.new()
 	health_comp.set_max_health(max_health)
 	add_child(health_comp)

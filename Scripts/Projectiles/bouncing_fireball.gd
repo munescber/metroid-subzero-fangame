@@ -151,12 +151,12 @@ func _on_area_entered(area: Area2D) -> void:
 		# Don't destroy immediately - fireball continues bouncing
 
 
-func receive_hit(damage_amount: int, source = null) -> void:
+func receive_hit(_damage_amount: int, _source = null) -> void:
 	"""Called when hit by a player bullet's hitbox."""
 	initiate_fade()
 
 
-func take_damage(damage_amount: int, source = null) -> void:
+func take_damage(_damage_amount: int, _source = null) -> void:
 	"""Called by our own Hurtbox when hit by a player bullet."""
 	initiate_fade()
 
