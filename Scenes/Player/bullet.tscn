@@ -39,6 +39,7 @@ animations = [{
 collision_layer = 8
 collision_mask = 1
 script = ExtResource("1_6y7z8")
+groups = ["player_projectile"]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_1")

@@ -1,5 +1,7 @@
 extends CharacterBody2D
 
+class_name Bullet
+
 # Bullet / beam settings.
 const SPEED := 120.0
 const LIFETIME := 2.0

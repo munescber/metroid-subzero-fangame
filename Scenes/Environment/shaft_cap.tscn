@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Texture2D" uid="uid://bmg2gysobj2qf" path="res://Tilesets/wrecked_ship.png" id="1_wship"]
+
+[node name="ShaftCap" type="Sprite2D"]
+z_index = 1
+texture = ExtResource("1_wship")
+region_enabled = true
+region_rect = Rect2(32, 0, 16, 16)
