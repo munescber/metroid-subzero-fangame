@@ -7,6 +7,7 @@ extends CharacterBody2D
 const MOVE_SPEED := 75.0
 const JUMP_FORCE := -350.0
 const SHOOT_COOLDOWN := 0.20
+const MISSILE_COOLDOWN := 0.6
 const BULLET_OFFSET := Vector2(12, 0)
 const AIM_UP_ANGLE := PI/4
 const AIM_DOWN_ANGLE := -PI/4
@@ -22,7 +23,9 @@ var gravity: float = ProjectSettings.get_setting("physics/2d/default_gravity")
 @onready var muzzle = $Muzzle
 
 var shoot_timer: float = 0.0
+var missile_timer: float = 0.0
 var bullet_scene: PackedScene = preload("res://Scenes/Player/bullet.tscn")
+var missile_scene: PackedScene = preload("res://Scenes/Player/missile.tscn")
 var aim_angle: float = 0.0
 var dash_cooldown_timer: float = 0.0
 var dash_remaining_distance: float = 0.0
@@ -35,6 +38,9 @@ var health_comp: HealthComponent = null
 # Health and damage tuning
 @export var max_health: int = 100
 @export var debug_enabled: bool = false
+
+# Missile ammo, exported so it can be hand-set for testing
+@export var missile_ammo: int = 5
 
 # Damage / invulnerability
 @export var invulnerability_time: float = 0.8
@@ -124,15 +130,50 @@ func _physics_process(delta):
 
 func handle_shoot(delta):
 	shoot_timer = max(shoot_timer - delta, 0.0)
+	missile_timer = max(missile_timer - delta, 0.0)
 
-	if Input.is_action_just_pressed("shoot") and shoot_timer <= 0.0:
-		shoot_timer = SHOOT_COOLDOWN
-		var final_dir: Vector2 = get_aim_direction()
-		var bullet = bullet_scene.instantiate()
-		bullet.start(final_dir, self)
-		# spawn slightly ahead so it doesn't immediately collide with player
-		bullet.global_position = muzzle.global_position + final_dir * 6
-		get_parent().add_child(bullet)
+	if Input.is_action_just_pressed("missile_mode") and debug_enabled:
+		print_debug("[Player] MISSILE STATE IS ON")
+	if Input.is_action_just_released("missile_mode") and debug_enabled:
+		print_debug("[Player] MISSILE STATE IS OFF")
+
+	if Input.is_action_just_pressed("shoot"):
+		if Input.is_action_pressed("missile_mode"):
+			_try_fire_missile()
+		elif shoot_timer <= 0.0:
+			_fire_bullet()
+
+
+func _fire_bullet() -> void:
+	shoot_timer = SHOOT_COOLDOWN
+	var final_dir: Vector2 = get_aim_direction()
+	var bullet = bullet_scene.instantiate()
+	bullet.start(final_dir, self)
+	# spawn slightly ahead so it doesn't immediately collide with player
+	bullet.global_position = muzzle.global_position + final_dir * 6
+	get_parent().add_child(bullet)
+
+
+func _try_fire_missile() -> void:
+	if missile_timer > 0.0:
+		return
+
+	if missile_ammo <= 0:
+		if debug_enabled:
+			print_debug("[Player] No missile ammo")
+		return
+
+	missile_timer = MISSILE_COOLDOWN
+	missile_ammo -= 1
+	var final_dir: Vector2 = get_aim_direction()
+	var missile = missile_scene.instantiate()
+	missile.start(final_dir, self)
+	# spawn slightly ahead so it doesn't immediately collide with player
+	missile.global_position = muzzle.global_position + final_dir * 6
+	get_parent().add_child(missile)
+
+	if debug_enabled:
+		print_debug("[Player] Missiles left: %d" % missile_ammo)
 
 
 
