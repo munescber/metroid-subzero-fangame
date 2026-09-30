@@ -19,6 +19,7 @@ Core files
 - `Scripts/Player/player_rundas.gd` — player-specific `take_damage()` shim, invulnerability, knockback, and death handling.
 - `Scripts/Enemies/rhinobug.gd` — enemy health setup, contact damage config, and death visuals/cleanup.
 - `Scripts/Player/bullet.gd` — projectile physics collision is kept on the `CharacterBody2D`, while a child `Hitbox` Area2D handles combat overlap.
+- `Scripts/Player/missile.gd` — same physical-body-plus-`Hitbox` convention as `Bullet`, but on impact it explodes into a small area-of-effect radius instead of damaging only what it directly touched. See `Docs/player_logic/MISSILE_LOGIC.md` for the full breakdown, including why its explosion uses a direct physics-space query instead of a toggled `Area2D` (see "Area-of-effect / burst damage" below).
 
 Current project behavior
 ------------------------
@@ -122,6 +123,65 @@ Example flow in this repo
 - Rhinobug contact: enemy `ContactDamage` Area2D overlaps the player `Hurtbox` -> player `take_damage()` -> player invul + knockback -> `HealthComponent.take_damage()`.
 - Death: once `current_health <= 0`, the entity plays death logic and disables collisions.
 
+Area-of-effect / burst damage (important gotcha)
+-------------------------------------------------
+Some attacks (e.g. `Missile`'s explosion) need to damage everything inside a
+radius at a single instant, rather than a single target via continuous
+Hitbox/Hurtbox overlap tracking. The naive approach — spawn a disabled
+`Area2D` sized to the blast radius, flip `monitoring = true` at the moment of
+the explosion, then read `get_overlapping_areas()` — **does not work** if
+anything is already touching that shape the instant monitoring turns on.
+
+This is a general Godot behavior, not a bug in this project's code:
+
+> An `Area2D` only tracks overlaps that *begin* while its `monitoring` is
+> already `true`. If a shape is already overlapping the moment you enable
+> `monitoring`, that overlap is never recorded as an "entered" event, so
+> `get_overlapping_areas()` will never report it, no matter how many frames
+> you wait afterward.
+
+For an explosion triggered by the thing it needs to damage (e.g. a missile
+exploding on the exact enemy that set it off), this is always the case — the
+target is already overlapping at the moment the explosion starts, so the
+toggled-`Area2D` approach silently misses it.
+
+**Use a direct physics-space query instead of a toggled `Area2D` for
+instant-radius damage:**
+
+```gdscript
+var space_state := get_world_2d().direct_space_state
+var shape := RectangleShape2D.new()
+shape.size = explosion_size
+
+var query := PhysicsShapeQueryParameters2D.new()
+query.shape = shape
+query.transform = Transform2D(0.0, global_position)
+query.collision_mask = 16 # Hurtbox layer
+query.collide_with_areas = true
+query.collide_with_bodies = false
+
+for result: Dictionary in space_state.intersect_shape(query):
+    var area: Area2D = result.get("collider")
+    if area and area.has_method("receive_hit"):
+        area.call("receive_hit", damage, source)
+```
+
+This queries "what overlaps this shape right now" synchronously, independent
+of any `Area2D` monitoring/enter-tracking state, so it reliably finds
+everything in range — including whatever triggered the explosion in the
+first place. See `Scripts/Player/missile.gd` for the full worked example.
+
+Deferred property changes from signal callbacks (important gotcha)
+---------------------------------------------------------------------
+If a `Hitbox`/`Hurtbox` signal callback (e.g. `area_entered`) needs to change
+another physics-related property — disabling a `CollisionShape2D`, flipping
+an `Area2D`'s `monitoring`, etc. — do it with `set_deferred(...)` rather than
+a direct assignment. These signals fire from inside the physics engine's
+collision query flush, and direct property writes at that point are not
+guaranteed to apply before the query finishes. `Scripts/Player/missile.gd`
+does this for both its `CollisionShape2D.disabled` and its `Hitbox.monitoring`
+when it explodes.
+
 Extensibility
 -------------
 This design supports:
@@ -130,5 +190,6 @@ This design supports:
 - traps and environmental hazards
 - projectile and melee attack reuse
 - boss or enemy-specific damage hooks
+- instant area-of-effect / burst damage (via direct physics-space queries)
 
 This documentation reflects the current repo implementation and should be kept in sync with future script changes.

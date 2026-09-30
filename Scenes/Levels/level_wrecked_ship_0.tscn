@@ -85,11 +85,12 @@ tile_map_data = PackedByteArray("AAAAAP//AAADAAAAAAABAP//AAABAAAAAAACAP//AAABAAA
 tile_set = SubResource("TileSet_gbtge")
 
 [node name="player_rundas" parent="." unique_id=146499936 instance=ExtResource("2_6rmbd")]
-position = Vector2(807, -114)
+position = Vector2(67, -111)
 debug_enabled = true
 
 [node name="rhinobug" parent="." unique_id=1191703244 instance=ExtResource("3_p28h1")]
 position = Vector2(83, -45)
+debug_enabled = true
 
 [node name="PatrolPoints" type="Node2D" parent="rhinobug" unique_id=1025024183]
 
@@ -118,10 +119,6 @@ enable_electric_field = false
 position = Vector2(872, -23)
 rise_duration = 1.0
 debug_enabled = true
-
-[node name="ShaftCap" parent="RisingPlatform"]
-texture = ExtResource("1_7sarq")
-region_rect = Rect2(32, 0, 16, 16)
 
 [node name="ActivationButton" parent="." unique_id=2010907619 instance=ExtResource("8_button")]
 position = Vector2(856, -39)
