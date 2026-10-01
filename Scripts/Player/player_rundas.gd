@@ -53,6 +53,8 @@ var _original_modulate: Color = Color(1,1,1,1)
 # Knockback
 @export var knockback_x: float = 120.0
 @export var knockback_y: float = 140.0
+@export var knockback_lock_duration: float = 0.2  # briefly ignores movement input so the knockback is actually felt
+var knockback_lock_timer: float = 0.0
 
 # Player damage tuning for debugging
 @export var player_damage_taken: int = 1
@@ -103,8 +105,10 @@ func _physics_process(delta):
 	handle_aim()
 	handle_shoot(delta)
 	handle_dash(delta)
-
-	if not is_dashing:
+	
+	if knockback_lock_timer > 0.0:
+		knockback_lock_timer -= delta
+	elif not is_dashing:
 		handle_horizontal_movement()
 
 	update_animation()
@@ -279,7 +283,8 @@ func take_damage(amount: int, source = null) -> void:
 	else:
 		# generic upward knockback
 		velocity.y = -abs(knockback_y)
-
+	knockback_lock_timer = knockback_lock_duration
+	
 	# mark invulnerable and start timers
 	invulnerable = true
 	invul_timer = invulnerability_time

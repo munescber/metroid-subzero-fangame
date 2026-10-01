@@ -93,3 +93,7 @@ position = Vector2(41, -3)
 
 [node name="Atomic" parent="." unique_id=1232447307 instance=ExtResource("6_owoyi")]
 position = Vector2(-39, 53)
+enable_wandering = false
+enable_attacks = false
+float_speed = 20.0
+electric_field_interval = 4.0
