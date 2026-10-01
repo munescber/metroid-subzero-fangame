@@ -84,7 +84,7 @@ animations = [{
 }]
 
 [sub_resource type="CircleShape2D" id="ElectricFieldShape"]
-radius = 19.0
+radius = 22.0
 
 [sub_resource type="CircleShape2D" id="ContactDamageShape"]
 radius = 9.0
@@ -105,7 +105,7 @@ shape = SubResource("PhysicsShape")
 
 [node name="ElectricFieldVisual" type="AnimatedSprite2D" parent="." unique_id=1557937966]
 material = SubResource("FieldMaterial")
-scale = Vector2(1, 1.052)
+scale = Vector2(1.1, 1.1)
 sprite_frames = SubResource("SpriteFrames_acosf")
 frame = 3
 frame_progress = 1.0
@@ -116,13 +116,13 @@ collision_mask = 16
 monitoring = false
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="ElectricField" unique_id=1741151884]
+position = Vector2(1, 0)
 shape = SubResource("ElectricFieldShape")
 
 [node name="HealthComponent" type="Node" parent="." unique_id=1567525673]
 script = ExtResource("5_health")
 
 [node name="ContactDamage" type="Area2D" parent="." unique_id=1470312677]
-visible = false
 collision_layer = 8
 collision_mask = 16
 script = ExtResource("4_hitbox")

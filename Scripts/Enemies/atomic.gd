@@ -88,9 +88,11 @@ var cooldown_timer: float = 0.0
 @export var electric_field_duration: float = 2.0
 @export var electric_field_radius: float = 24.0
 @export var electric_field_damage: int = 5
+@export var electric_field_damage_tick: float = 0.5  # how often the field re-checks for player damage
 @export var electric_field_cooldown: float = 1.5
 
 var electric_field_interval_timer: float = 0.0
+var electric_field_damage_tick_timer: float = 0.0
 var electric_charge_timer: float = 0.0
 var electric_field_timer: float = 0.0
 var electric_cooldown_timer: float = 0.0
@@ -175,6 +177,7 @@ func _ready() -> void:
 	# Start floating behavior
 	_choose_new_float_target()
 	animated_sprite.play("default")
+	electric_field_visual.play("default")
 	electric_field_visual.visible = false
 	electric_field_area.set_deferred("monitoring", false)
 
@@ -219,8 +222,18 @@ func _physics_process(delta: float) -> void:
 		State.COOLDOWN:
 			_update_cooldown(delta)
 	
+	if debug_enabled:
+		queue_redraw()
+	
 	velocity = current_velocity
 	move_and_slide()
+
+func _draw() -> void:
+	# Visualizes the electric field's actual hit radius (debug_enabled only) since the sprite itself stays a fixed size
+	if not debug_enabled or not electric_field_area:
+		return
+	var radius = electric_field_radius * electric_field_area.scale.x
+	draw_arc(Vector2.ZERO, radius, 0.0, TAU, 32, Color(1, 1, 0, 0.6), 2.0)
 
 # ==============================================================================
 # FLOATING STATE
@@ -390,9 +403,13 @@ func _update_electric_field(delta: float) -> void:
 	if electric_field_timer == 0.0 and debug_enabled:
 		print_debug("[Atomic] ELECTRIC FIELD ACTIVATED! Radius: ", electric_field_radius, " Damage: ", electric_field_damage)
 	
-	# Query overlaps directly each frame: area_entered only fires on new overlaps,
-	# so a player already standing in range when the field activates would never be hit.
-	_apply_electric_field_damage()
+	# Query overlaps on a fixed tick instead of every frame: area_entered only fires on new overlaps
+	# (so a stationary player would never be hit), but querying 60x/sec is wasted work and log spam
+	# once the player's own invulnerability window is already blocking repeat hits.
+	electric_field_damage_tick_timer -= delta
+	if electric_field_damage_tick_timer <= 0.0:
+		electric_field_damage_tick_timer = electric_field_damage_tick
+		_apply_electric_field_damage()
 	
 	electric_field_timer += delta
 	if electric_field_timer >= electric_field_duration:
@@ -417,21 +434,28 @@ func _apply_electric_field_damage() -> void:
 		var area: Area2D = result.get("collider")
 		if area == null:
 			continue
-		var area_parent: Node = area.get_parent()
-		if area_parent == self:
-			continue
-		if area_parent == null:
-			continue
-		# Group lookup can be unreliable depending on scene load order, so also
-		# match by node name (same defensive pattern as missile.gd's explosion damage)
-		var is_player: bool = (area_parent.name == "Player" or area_parent.name == "player_rundas" or area_parent.is_in_group("player"))
-		if is_player and area.has_method("receive_hit"):
-			if debug_enabled:
-				print_debug("[Atomic] Electric field hit player for ", electric_field_damage, " damage!")
-			area.call("receive_hit", electric_field_damage, self)
+		_try_hit_player_area(area)
+
+func _try_hit_player_area(area: Area2D) -> bool:
+	var area_parent: Node = area.get_parent()
+	if area_parent == null or area_parent == self:
+		return false
+	# Group lookup can be unreliable depending on scene load order, so also
+	# match by node name (same defensive pattern as missile.gd's explosion damage)
+	var is_player: bool = (area_parent.name == "Player" or area_parent.name == "player_rundas" or area_parent.is_in_group("player"))
+	if is_player and area.has_method("receive_hit"):
+		if debug_enabled:
+			print_debug("[Atomic] Electric field hit player for ", electric_field_damage, " damage!")
+		area.call("receive_hit", electric_field_damage, self)
+		return true
+	return false
 
 func _on_electric_field_entered(area: Area2D) -> void:
 	if not field_active:
+		return
+	
+	# Instant "spike" hit the moment the player's Hurtbox touches the field's edge
+	if _try_hit_player_area(area):
 		return
 	
 	# Destroy missiles/projectiles (both bullet and missile scenes name their combat Area2D "Hitbox")
@@ -484,6 +508,7 @@ func _transition_to_state(new_state: State) -> void:
 			current_velocity = Vector2.ZERO
 		State.ELECTRIC_FIELD:
 			electric_field_timer = 0.0
+			electric_field_damage_tick_timer = 0.0
 			field_active = true
 			electric_field_area.set_deferred("monitoring", true)
 			hurtbox.set_deferred("monitoring", false)
@@ -502,13 +527,14 @@ func _transition_to_state(new_state: State) -> void:
 # ==============================================================================
 
 func _update_glow_intensity(_delta: float) -> void:
-	# Update electric field visual based on state and glow intensity
+	# Update field collision area size based on glow. Caps at 1.0 so the fully-active
+	# field's real hit radius matches its resting/visible size instead of overshooting it.
+	var field_scale = 0.5 + (glow_intensity / 4.0)
+	
 	if electric_field_visual:
 		electric_field_visual.visible = glow_intensity > 0.01
 		electric_field_visual.modulate.a = glow_intensity / 2.0
 	
-	# Update field collision area size based on glow
-	var field_scale = 0.5 + (glow_intensity / 2.0)
 	if electric_field_area:
 		electric_field_area.scale = Vector2(field_scale, field_scale)
 
