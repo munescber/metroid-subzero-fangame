@@ -11,25 +11,25 @@ etc.) calls `activate()`. Fully decoupled from whatever triggers it.
 ## Files
 
 - `Scripts/Environment/rising_platform.gd` — the platform's behavior.
-- `Scripts/Environment/activation_button.gd` — a reusable trigger.
+- `Scripts/Environment/activation_button.gd` — a reusable trigger, documented
+  separately in [ACTIVATION_BUTTON.md](ACTIVATION_BUTTON.md).
 - `Scenes/Environment/rising_platform.tscn` — the platform scene.
 - `Scenes/Environment/activation_button.tscn` — the button scene.
 - `Scripts/Player/bullet.gd` — has `class_name Bullet` (added for this
   feature) so triggers can identify player projectiles.
-- `Scenes/Levels/level_wrecked_ship_0.tscn` — test wiring for both.
-- `Scenes/Environment/shaft_cap.tscn` — **unused/orphaned**, superseded by
-  the bundled `ShaftCap` node inside `rising_platform.tscn`. Safe to delete.
+- `Scenes/Levels/level_wrecked_ship_0.tscn` — test wiring for both, plus the
+  `BackgroundTileMapLayer`/draw-order setup described in
+  [BACKGROUND_LAYERS.md](BACKGROUND_LAYERS.md).
 
 ## Scene structure
 
 ```text
 RisingPlatform (Node2D, script: rising_platform.gd)
-├── Body (AnimatableBody2D)            <- the part that actually moves
-│   ├── TileTop (Sprite2D)             <- miscellaneous.png tile (16,0,16,16)
-│   ├── TileMiddle (Sprite2D)          <- same tile, stacked
-│   ├── TileBottom (Sprite2D)          <- same tile, stacked
-│   └── CollisionShape2D               <- RectangleShape2D 16x48, centered
-└── ShaftCap (Sprite2D)                <- static, does NOT move
+└── Body (AnimatableBody2D)            <- the part that actually moves
+    ├── TileTop (Sprite2D)             <- miscellaneous.png tile (16,0,16,16)
+    ├── TileMiddle (Sprite2D)          <- same tile, stacked
+    ├── TileBottom (Sprite2D)          <- same tile, stacked
+    └── CollisionShape2D               <- RectangleShape2D 16x48, centered
 ```
 
 `Body`'s three stacked 16×16 tiles form the visible 16×48 pillar and share one
@@ -38,9 +38,9 @@ RisingPlatform (Node2D, script: rising_platform.gd)
 stand on / be carried by it via `move_and_slide()`'s built-in platform
 handling.
 
-`ShaftCap` is a plain decorative `Sprite2D`, not a child of `Body`, so it
-never moves. Its `texture`/`region_rect` are overridden per level instance to
-match that level's floor tileset (see wiring below).
+`Body` no longer carries its own decorative cap — the level's real terrain
+`TileMapLayer` covers the retracted segment instead. See
+[BACKGROUND_LAYERS.md](BACKGROUND_LAYERS.md) for the full draw-order model.
 
 ## Positioning model (important)
 
@@ -51,15 +51,14 @@ like a normal tile. Everything else is computed automatically in
 
 - `_lowered_local = Vector2(0, tile_size)` — retracted position, one tile
   row (`tile_size`, default `16`) below the anchor. This puts `Body`'s
-  `TileTop` cell exactly where `ShaftCap` is, so the top segment is visually
-  covered at rest.
+  `TileTop` cell exactly where the level's real floor "cap" tile is, so the
+  top segment is visually covered at rest.
 - `_raised_local = _lowered_local - Vector2(0, rise_distance)` — raised
   position, `rise_distance` (default `48`, i.e. the pillar's own height)
   above the retracted position.
 
 `Body.position` (local, relative to the wrapper) is tweened between these
-two values — never the wrapper's own `position`, so `ShaftCap` is unaffected
-by movement.
+two values.
 
 ## Public API (`rising_platform.gd`)
 
@@ -80,29 +79,11 @@ callback.
 
 ## Trigger: `activation_button.gd`
 
-An `Area2D` that reacts to two independent trigger paths, fully decoupled
-from `RisingPlatform` (it just calls `activate()`/`toggle()` on whatever
-`target_path` points to):
-
-- **Stepped on** — `body_entered`, checks `body.is_in_group("player")`.
-- **Shot** — `area_entered`, checks that the entering area's parent `is
-  Bullet` (the `class_name Bullet` added to `bullet.gd`). This intentionally
-  does **not** use a scene-saved `group`, because a group added directly to
-  a `.tscn` file can be silently lost if the scene is open in the editor and
-  gets re-saved from stale in-memory state — using the script's own class
-  identity is immune to that.
-- `collision_layer = 0`, `collision_mask = 2 | 8` (PlayerBody + Hitbox).
-- `one_shot` / `toggle_mode` exported for reusability.
-- `target_path: NodePath`, resolved once in `_ready()`. Must point at the
-  `RisingPlatform` node itself (not `Body`), since that's where
-  `activate()`/`toggle()` live.
-
-### Why layer 8 needed filtering
-
-Collision layer 8 ("Hitbox") is shared by **all** damage-dealing areas in
-the project — the player's bullet, but also enemy `ContactDamage` and
-`ElectricField` areas. Without the `is Bullet` check, any enemy attack area
-that happened to overlap the button would also trigger it.
+`RisingPlatform` is deliberately unaware of what triggers it — it only
+exposes `activate()`/`lower()`/`toggle()`. In this scene the trigger is
+`ActivationButton`, fully documented on its own in
+[ACTIVATION_BUTTON.md](ACTIVATION_BUTTON.md) since it's a general-purpose,
+reusable node not specific to this platform.
 
 ## Level wiring (`level_wrecked_ship_0.tscn`)
 
@@ -112,48 +93,38 @@ position = Vector2(872, -23)
 rise_duration = 1.0
 debug_enabled = true
 
-[node name="ShaftCap" parent="RisingPlatform"]
-texture = ExtResource("1_7sarq")           # wrecked_ship.png
-region_rect = Rect2(32, 0, 16, 16)          # solid tan/orange floor tile
-
 [node name="ActivationButton" parent="." instance=ExtResource("8_button")]
 position = Vector2(856, -39)
 target_path = NodePath("../RisingPlatform")
 debug_enabled = true
 ```
 
-`ShaftCap`'s art is overridden per level instance (it's just a `Sprite2D`
-property override) to match whatever tileset that level uses — no need to
-duplicate the whole platform scene per tileset.
+## Draw order — resolved
 
-## Known issue — not yet resolved
+Previously `ShaftCap` was a separate `Sprite2D` painted per-level to fake a
+floor tile covering the retracted pillar, and `Body` had no `z_index`
+override, so it tied with the `TileMapLayer` (`z_index = 0`) and drew **in
+front of** solid ground by scene-tree order.
 
-**Draw order between the retracted/rising pillar and the level's solid
-tiles is unresolved.**
+The fix adopted a project-wide draw-order convention instead of per-node
+hacks:
 
-- With no `z_index` override on `Body`, ties with the `TileMapLayer`
-  (`z_index = 0`) resolve by scene-tree order. Since `Body` is added after
-  the `TileMapLayer`, it currently always draws **in front of** solid
-  ground tiles. Net effect: only the single tile directly behind `ShaftCap`
-  (which is explicitly `z_index = 1`) is properly hidden; the other two
-  retracted segments visibly poke through the solid checkered ground tiles
-  below the floor line.
-- Setting `Body.z_index = -1` (tried and reverted) makes it draw behind the
-  `TileMapLayer` correctly — but in `level_wrecked_ship_0`, the area that
-  visually reads as open black "sky" above the floor line is **not actually
-  empty** — it's real, solid-colored wall/floor tiles from
-  `wrecked_ship.png`. With `z_index = -1`, the platform ends up hidden
-  behind those tiles in every position, including fully raised, i.e.
-  invisible at all times.
-- **This is a level-geometry problem, not a script problem.** The
-  `TileMapLayer`'s tile data is a binary `PackedByteArray` blob in the
-  `.tscn` — not safely hand-editable as text. The fix requires manually
-  erasing tiles in the Godot editor's tile-painting tool, in the platform's
-  column, from underground up through **all** solid rows to genuinely open
-  space, not just the 3 rows the pillar occupies.
-- Once that gap exists: re-add `z_index = -1` to `Body` in
-  `rising_platform.tscn`, and the layering should resolve correctly in both
-  states.
+- `Body.z_index = -1` — always draws behind the main terrain `TileMapLayer`
+  (`z_index = 0`), regardless of tree order.
+- `ShaftCap` node removed from `rising_platform.tscn` entirely. The real
+  terrain tile now plays that role: the level's `TileMapLayer` must have an
+  actual floor tile painted at the retracted top segment's position (the
+  "cap"), and genuinely empty cells (no tile) for every row above it that
+  the pillar passes through while rising.
+- This requires level geometry to match: any cell that should let the
+  raised pillar show through must be truly empty, not just a tile that
+  looks like black sky. `level_wrecked_ship_0`'s shaft column was manually
+  corrected in the tile-painting tool to satisfy this.
+- `Scenes/Environment/shaft_cap.tscn` is now fully superseded and can be
+  deleted (see Housekeeping).
+- See [BACKGROUND_LAYERS.md](BACKGROUND_LAYERS.md) for the general-purpose
+  background/hidden-object/foreground layering convention this fix
+  established — it applies beyond just this platform.
 
 ## Housekeeping
 
