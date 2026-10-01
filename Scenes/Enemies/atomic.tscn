@@ -6,7 +6,7 @@
 [ext_resource type="Script" uid="uid://c3c0xff4hp2wj" path="res://Scripts/Common/health_component.gd" id="5_health"]
 [ext_resource type="Script" uid="uid://cjlps8ugi1jdq" path="res://Scripts/Common/hurtbox.gd" id="6_hurtbox"]
 [ext_resource type="Shader" uid="uid://c0rjdmj6wek58" path="res://Scenes/Effects/atomic_electric_field.gdshader" id="7_shader"]
-[ext_resource type="Script" uid="uid://b4c5f3x4ws6ag" path="res://Scripts/Enemies/atomic.gd" id="8_script"]
+[ext_resource type="Script" uid="uid://cbbsxmqqoi323" path="res://Scripts/Enemies/atomic.gd" id="8_script"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_fp6uk"]
 atlas = ExtResource("1_tkdwp")
@@ -46,8 +46,8 @@ radius = 9.0
 [sub_resource type="ShaderMaterial" id="FieldMaterial"]
 shader = ExtResource("7_shader")
 shader_parameter/pulse_speed = 3.0
-shader_parameter/base_intensity = 1.0
-shader_parameter/dark_green = Vector3(0, 0.345, 0)
+shader_parameter/base_intensity = 1.5
+shader_parameter/dark_green = Vector3(0.18, 1, 0.35)
 shader_parameter/yellow = Vector3(0.973, 0.722, 0)
 shader_parameter/white = Vector3(0.988, 0.988, 0.988)
 
@@ -80,11 +80,11 @@ animations = [{
 }],
 "loop": 1,
 "name": &"default",
-"speed": 3.0
+"speed": 4.0
 }]
 
 [sub_resource type="CircleShape2D" id="ElectricFieldShape"]
-radius = 24.0
+radius = 19.0
 
 [sub_resource type="CircleShape2D" id="ContactDamageShape"]
 radius = 9.0
@@ -107,7 +107,8 @@ shape = SubResource("PhysicsShape")
 material = SubResource("FieldMaterial")
 scale = Vector2(1, 1.052)
 sprite_frames = SubResource("SpriteFrames_acosf")
-frame_progress = 0.24567068
+frame = 3
+frame_progress = 1.0
 
 [node name="ElectricField" type="Area2D" parent="." unique_id=2097612644]
 collision_layer = 8
