@@ -5,7 +5,7 @@ extends CharacterBody2D
 # ==================================================
 
 const MOVE_SPEED := 75.0
-const JUMP_FORCE := -350.0
+const JUMP_FORCE := -320.0
 const SHOOT_COOLDOWN := 0.20
 const MISSILE_COOLDOWN := 0.6
 const BULLET_OFFSET := Vector2(12, 0)
@@ -40,7 +40,7 @@ var health_comp: HealthComponent = null
 @export var debug_enabled: bool = false
 
 # Missile ammo, exported so it can be hand-set for testing
-@export var missile_ammo: int = 5
+@export var missile_ammo: int = 100
 
 # Damage / invulnerability
 @export var invulnerability_time: float = 0.8

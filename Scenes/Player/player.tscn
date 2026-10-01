@@ -86,12 +86,15 @@ animations = [{
 position = Vector2(1, 0)
 collision_layer = 2
 script = ExtResource("1_6t2vb")
+knockback_x = 140.0
+knockback_y = 160.0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=351996993]
 position = Vector2(-1.5, 0.5)
 shape = SubResource("RectangleShape2D_kymcg")
 
 [node name="Camera2D" type="Camera2D" parent="." unique_id=942246653]
+offset = Vector2(0, -20)
 zoom = Vector2(4, 4)
 position_smoothing_enabled = true
 position_smoothing_speed = 6.0

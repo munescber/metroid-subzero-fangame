@@ -60,6 +60,7 @@ sprite_frames = SubResource("SpriteFrames_missile")
 animation = &"explode"
 frame = 2
 frame_progress = 1.0
+speed_scale = 1.5
 
 [node name="Hitbox" type="Area2D" parent="." unique_id=1487285328]
 collision_layer = 8
