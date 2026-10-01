@@ -45,11 +45,12 @@ var current_state: State = State.FLOATING
 @export_category("Movement")
 @export var float_speed: float = 40.0
 @export var float_change_interval: float = 3.0
+@export var seek_speed: float = 28.0
+@export var seek_smoothing: float = 4.0
 
 var current_velocity: Vector2 = Vector2.ZERO
 var float_target: Vector2 = Vector2.ZERO
 var float_timer: float = 0.0
-var gravity: float = ProjectSettings.get_setting("physics/2d/default_gravity")
 
 # ==============================================================================
 # PLAYER DETECTION
@@ -82,12 +83,14 @@ var cooldown_timer: float = 0.0
 # ==============================================================================
 
 @export_category("Electric Field")
-@export var electric_charge_duration: float = 0.5
+@export var electric_field_interval: float = 10.0  # time spent floating/seeking between activations
+@export var electric_charge_duration: float = 1.5
 @export var electric_field_duration: float = 2.0
-@export var electric_field_radius: float = 48.0
-@export var electric_field_damage: int = 1
+@export var electric_field_radius: float = 24.0
+@export var electric_field_damage: int = 5
 @export var electric_field_cooldown: float = 1.5
 
+var electric_field_interval_timer: float = 0.0
 var electric_charge_timer: float = 0.0
 var electric_field_timer: float = 0.0
 var electric_cooldown_timer: float = 0.0
@@ -101,11 +104,15 @@ var field_active: bool = false
 @export var rotation_speed: float = 1.0
 @export var glow_intensity: float = 0.0
 
+const GLOW_COLOR_IDLE := Color(1, 1, 1, 1)
+const GLOW_COLOR_CHARGED := Color(1, 0.85, 0.15, 1)
+
 @onready var visuals: Node2D = $Visuals
 @onready var animated_sprite: AnimatedSprite2D = $Visuals/AnimatedSprite2D
 @onready var electric_field_visual: AnimatedSprite2D = $ElectricFieldVisual
 @onready var electric_field_area: Area2D = $ElectricField
 @onready var hurtbox: Area2D = $Hurtbox
+@onready var contact_damage_area: Area2D = $ContactDamage
 @onready var damage_flash_timer: Timer = $DamageFlashTimer
 
 # ==============================================================================
@@ -150,9 +157,20 @@ func _ready() -> void:
 	electric_field_area.collision_mask = 16 | 8 # Hurtbox (player) + Hitbox (missiles)
 	electric_field_area.connect("area_entered", Callable(self, "_on_electric_field_entered"))
 	
+	# electric_field_radius is the single source of truth for the field's actual reach,
+	# so the visual, the bullet-blocking area, and the player-damage query all agree
+	var electric_field_shape: CollisionShape2D = electric_field_area.get_node("CollisionShape2D")
+	if electric_field_shape and electric_field_shape.shape is CircleShape2D:
+		electric_field_shape.shape.radius = electric_field_radius
+	
 	# Setup hurtbox
 	hurtbox.collision_layer = 16  # Hurtbox
 	hurtbox.collision_mask = 8    # Hitbox
+	
+	# Setup contact damage so knockback direction and damage source logging work
+	if contact_damage_area:
+		contact_damage_area.damage = contact_damage
+		contact_damage_area.source = self
 	
 	# Start floating behavior
 	_choose_new_float_target()
@@ -177,6 +195,10 @@ func _physics_process(delta: float) -> void:
 	if visuals:
 		visuals.rotation += rotation_speed * delta
 	
+	# Electric field runs on its own independent schedule, regardless of enable_attacks
+	if enable_electric_field and current_state != State.ELECTRIC_CHARGING and current_state != State.ELECTRIC_FIELD:
+		electric_field_interval_timer += delta
+	
 	# Update glow intensity based on state
 	_update_glow_intensity(delta)
 	
@@ -197,12 +219,6 @@ func _physics_process(delta: float) -> void:
 		State.COOLDOWN:
 			_update_cooldown(delta)
 	
-	# Apply gravity (but less aggressive for flying enemy)
-	if not is_on_floor():
-		current_velocity.y += gravity * 0.3 * delta
-	else:
-		current_velocity.y = 0.0
-	
 	velocity = current_velocity
 	move_and_slide()
 
@@ -211,25 +227,40 @@ func _physics_process(delta: float) -> void:
 # ==============================================================================
 
 func _update_floating(delta: float) -> void:
+	# Electric field is fully independent of wandering/seeking/attacks and takes priority
+	if enable_electric_field and electric_field_interval_timer >= electric_field_interval:
+		_transition_to_state(State.ELECTRIC_CHARGING)
+		return
+	
 	# Fallback: re-attempt player lookup if it was never found at _ready()
 	if not player:
 		player = _find_player()
 		if player and debug_enabled:
 			print_debug("[Atomic] Player found via fallback lookup: ", player)
 	
-	# Detect player (runs regardless of wandering toggle)
-	if player and not player_detected:
+	# Detect/disengage player (runs regardless of wandering toggle)
+	if player:
 		var dist_to_player = global_position.distance_to(player.global_position)
-		if dist_to_player < detection_range:
+		if not player_detected and dist_to_player < detection_range:
 			player_detected = true
 			if debug_enabled:
 				print_debug("[Atomic] Player detected at distance: ", dist_to_player)
+		elif player_detected and dist_to_player > disengage_range:
+			player_detected = false
+			_choose_new_float_target()
+			if debug_enabled:
+				print_debug("[Atomic] Player disengaged at distance: ", dist_to_player)
 	
 	# If player detected and conditions met, start charging
 	if player_detected and cooldown_timer <= 0.0:
 		if enable_attacks:
 			_transition_to_state(State.CHARGING)
 			return
+	
+	# Gravitate slowly toward the player while detected (even without attacks)
+	if player_detected:
+		_update_seeking(delta)
+		return
 	
 	if not enable_wandering:
 		current_velocity *= 0.95
@@ -250,6 +281,16 @@ func _update_floating(delta: float) -> void:
 	
 	# Small upward float bias to prevent sinking
 	if abs(current_velocity.y) < float_speed * 0.5:
+		current_velocity.y = -float_speed * 0.3
+
+func _update_seeking(delta: float) -> void:
+	var to_player = player.global_position - global_position
+	var direction_to_player = to_player.normalized()
+	var target_velocity = direction_to_player * seek_speed
+	current_velocity = current_velocity.lerp(target_velocity, seek_smoothing * delta)
+	
+	# Avoid a steady downward drift when roughly level with the player
+	if abs(to_player.y) < 8.0 and abs(current_velocity.y) < float_speed * 0.5:
 		current_velocity.y = -float_speed * 0.3
 
 func _choose_new_float_target() -> void:
@@ -314,21 +355,20 @@ func _update_recovering(delta: float) -> void:
 	
 	cooldown_timer += delta
 	if cooldown_timer >= dash_cooldown:
-		if debug_enabled:
-			print_debug("[Atomic] Recovering complete. enable_electric_field=", enable_electric_field)
-		# Transition to electric field sequence if enabled
-		if enable_electric_field:
-			_transition_to_state(State.ELECTRIC_CHARGING)
-		else:
-			_transition_to_state(State.COOLDOWN)
+		_transition_to_state(State.COOLDOWN)
 
 # ==============================================================================
 # ELECTRIC CHARGING STATE
 # ==============================================================================
 
 func _update_electric_charging(delta: float) -> void:
-	current_velocity *= 0.95
-	glow_intensity = min(2.0, glow_intensity + 3.0 * delta)
+	# Comes to a complete stop while telegraphing the upcoming field
+	current_velocity = Vector2.ZERO
+	
+	var progress = clamp(electric_charge_timer / electric_charge_duration, 0.0, 1.0)
+	glow_intensity = progress * 2.0
+	if animated_sprite:
+		animated_sprite.modulate = GLOW_COLOR_IDLE.lerp(GLOW_COLOR_CHARGED, progress)
 	
 	if electric_charge_timer == 0.0 and debug_enabled:
 		print_debug("[Atomic] CHARGING electric field! Intensity building...")
@@ -342,11 +382,17 @@ func _update_electric_charging(delta: float) -> void:
 # ==============================================================================
 
 func _update_electric_field(delta: float) -> void:
-	current_velocity *= 0.98
+	current_velocity = Vector2.ZERO
 	glow_intensity = 2.0
+	if animated_sprite:
+		animated_sprite.modulate = GLOW_COLOR_CHARGED
 	
 	if electric_field_timer == 0.0 and debug_enabled:
 		print_debug("[Atomic] ELECTRIC FIELD ACTIVATED! Radius: ", electric_field_radius, " Damage: ", electric_field_damage)
+	
+	# Query overlaps directly each frame: area_entered only fires on new overlaps,
+	# so a player already standing in range when the field activates would never be hit.
+	_apply_electric_field_damage()
 	
 	electric_field_timer += delta
 	if electric_field_timer >= electric_field_duration:
@@ -354,21 +400,43 @@ func _update_electric_field(delta: float) -> void:
 			print_debug("[Atomic] Electric field deactivating...")
 		_transition_to_state(State.COOLDOWN)
 
+func _apply_electric_field_damage() -> void:
+	var space_state := get_world_2d().direct_space_state
+	var shape := CircleShape2D.new()
+	# Match the area's current (glow-scaled) size so the damage range always equals what's visible/blocking bullets
+	shape.radius = electric_field_radius * electric_field_area.scale.x
+	
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = shape
+	query.transform = Transform2D(0.0, global_position)
+	query.collision_mask = 16  # Hurtbox layer
+	query.collide_with_areas = true
+	query.collide_with_bodies = false
+	
+	for result: Dictionary in space_state.intersect_shape(query):
+		var area: Area2D = result.get("collider")
+		if area == null:
+			continue
+		var area_parent: Node = area.get_parent()
+		if area_parent == self:
+			continue
+		if area_parent == null:
+			continue
+		# Group lookup can be unreliable depending on scene load order, so also
+		# match by node name (same defensive pattern as missile.gd's explosion damage)
+		var is_player: bool = (area_parent.name == "Player" or area_parent.name == "player_rundas" or area_parent.is_in_group("player"))
+		if is_player and area.has_method("receive_hit"):
+			if debug_enabled:
+				print_debug("[Atomic] Electric field hit player for ", electric_field_damage, " damage!")
+			area.call("receive_hit", electric_field_damage, self)
+
 func _on_electric_field_entered(area: Area2D) -> void:
 	if not field_active:
 		return
 	
-	var area_parent = area.get_parent()
-	
-	# Damage the player if their Hurtbox enters the field
-	if area_parent and area_parent.is_in_group("player") and area.has_method("receive_hit"):
-		if debug_enabled:
-			print_debug("[Atomic] Electric field hit player for ", electric_field_damage, " damage!")
-		area.call("receive_hit", electric_field_damage, self)
-		return
-	
-	# Destroy missiles/projectiles
-	if area.is_in_group("projectile") or area.name == "Hitbox":
+	# Destroy missiles/projectiles (both bullet and missile scenes name their combat Area2D "Hitbox")
+	if area.name == "Hitbox":
+		var area_parent = area.get_parent()
 		if debug_enabled:
 			print_debug("[Atomic] Electric field destroyed projectile: ", area.name)
 		if area_parent and area_parent.has_method("take_damage"):
@@ -383,6 +451,8 @@ func _on_electric_field_entered(area: Area2D) -> void:
 func _update_cooldown(delta: float) -> void:
 	current_velocity *= 0.98
 	glow_intensity = max(0.0, glow_intensity - 2.0 * delta)
+	if animated_sprite:
+		animated_sprite.modulate = GLOW_COLOR_IDLE.lerp(GLOW_COLOR_CHARGED, glow_intensity / 2.0)
 	
 	electric_cooldown_timer += delta
 	if electric_cooldown_timer >= electric_field_cooldown:
@@ -411,17 +481,21 @@ func _transition_to_state(new_state: State) -> void:
 			cooldown_timer = 0.0
 		State.ELECTRIC_CHARGING:
 			electric_charge_timer = 0.0
+			current_velocity = Vector2.ZERO
 		State.ELECTRIC_FIELD:
 			electric_field_timer = 0.0
 			field_active = true
 			electric_field_area.set_deferred("monitoring", true)
+			hurtbox.set_deferred("monitoring", false)
 		State.COOLDOWN:
 			electric_cooldown_timer = 0.0
 			field_active = false
 			electric_field_area.set_deferred("monitoring", false)
+			hurtbox.set_deferred("monitoring", true)
 			cooldown_timer = 0.0  # release the attack-trigger gate for the next cycle
 		State.FLOATING:
 			cooldown_timer = 0.0  # in case electric field was disabled and we skipped COOLDOWN's reset
+			electric_field_interval_timer = 0.0
 
 # ==============================================================================
 # GLOW/VISUAL UPDATES
@@ -446,10 +520,10 @@ func take_damage(amount: int, source = null) -> void:
 	if current_state == State.DEAD:
 		return
 	
-	# Missiles cannot damage during electric field
-	if field_active and source and source.is_in_group("projectile"):
+	# Fully immune while the electric field is active (hurtbox is also disabled, this is a backstop)
+	if field_active:
 		if debug_enabled:
-			print_debug("[Atomic] Projectile blocked by electric field! Immunity active.")
+			print_debug("[Atomic] Damage blocked by electric field! Immunity active.")
 		return
 	
 	if debug_enabled:
@@ -467,7 +541,7 @@ func _on_health_damaged(amount: int, new_health: int) -> void:
 
 func _on_damage_flash_timer_timeout() -> void:
 	if animated_sprite:
-		animated_sprite.modulate = Color(1, 1, 1, 1)
+		animated_sprite.modulate = GLOW_COLOR_IDLE.lerp(GLOW_COLOR_CHARGED, glow_intensity / 2.0)
 
 func _on_health_died() -> void:
 	if debug_enabled:

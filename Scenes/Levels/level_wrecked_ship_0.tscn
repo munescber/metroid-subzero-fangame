@@ -85,7 +85,7 @@ tile_map_data = PackedByteArray("AAAAAP//AAADAAAAAAABAP//AAABAAAAAAACAP//AAABAAA
 tile_set = SubResource("TileSet_gbtge")
 
 [node name="player_rundas" parent="." unique_id=146499936 instance=ExtResource("2_6rmbd")]
-position = Vector2(67, -111)
+position = Vector2(636, -89)
 debug_enabled = true
 
 [node name="rhinobug" parent="." unique_id=1191703244 instance=ExtResource("3_p28h1")]
@@ -111,9 +111,12 @@ position = Vector2(243, -86)
 
 [node name="Atomic" parent="." unique_id=1232447307 instance=ExtResource("6_7onpy")]
 position = Vector2(750, -112)
-enable_wandering = false
 enable_attacks = false
-enable_electric_field = false
+debug_enabled = true
+float_speed = 20.0
+seek_speed = 10.0
+dash_speed = 50.0
+dash_cooldown = 3.0
 
 [node name="RisingPlatform" parent="." unique_id=16665199 instance=ExtResource("7_platform")]
 position = Vector2(872, -23)
