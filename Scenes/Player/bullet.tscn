@@ -1,10 +1,39 @@
-[gd_scene load_steps=8 format=3 uid="uid://b4d85nlhdff5f"]
+[gd_scene format=3 uid="uid://b4d85nlhdff5f"]
 
-[ext_resource type="Script" path="res://Scripts/Player/bullet.gd" id="1_6y7z8"]
-[ext_resource type="Texture2D" path="res://Spritesheets/beams.png" id="2_kde2l"]
+[ext_resource type="Script" uid="uid://buf3ifd3sh753" path="res://Scripts/Player/bullet.gd" id="1_6y7z8"]
+[ext_resource type="Texture2D" uid="uid://p3ycmh3urcty" path="res://Spritesheets/beams.png" id="2_kde2l"]
+[ext_resource type="Shader" path="res://Scenes/Effects/bullet_trail.gdshader" id="3_trail"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_trail"]
+resource_local_to_scene = true
+shader = ExtResource("3_trail")
+shader_parameter/tint = Color(0.235294, 0.737255, 0.988235, 1)
+shader_parameter/copies = 3
+shader_parameter/spacing = 5.0
+shader_parameter/start_radius = 3.5
+shader_parameter/scale_falloff = 0.75
+shader_parameter/start_alpha = 0.6
+shader_parameter/alpha_falloff = 0.55
+shader_parameter/trail_length = 0.0
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_trail"]
+width = 24
+height = 8
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
 size = Vector2(4.75, 5)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_l8742"]
+atlas = ExtResource("2_kde2l")
+region = Rect2(32, 24, 8, 8)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_vatw8"]
+atlas = ExtResource("2_kde2l")
+region = Rect2(0, 32, 8, 8)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_t6id0"]
+atlas = ExtResource("2_kde2l")
+region = Rect2(8, 32, 8, 8)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_3aeib"]
 atlas = ExtResource("2_kde2l")
@@ -22,6 +51,20 @@ region = Rect2(0, 8, 8, 8)
 animations = [{
 "frames": [{
 "duration": 1.0,
+"texture": SubResource("AtlasTexture_l8742")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_vatw8")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_t6id0")
+}],
+"loop": 1,
+"name": &"idle",
+"speed": 4.0
+}, {
+"frames": [{
+"duration": 1.0,
 "texture": SubResource("AtlasTexture_3aeib")
 }, {
 "duration": 1.0,
@@ -30,28 +73,32 @@ animations = [{
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_16r0p")
 }],
-"loop": true,
-"name": &"idle",
+"loop": 1,
+"name": &"idle_2",
 "speed": 5.0
 }]
 
-[node name="bullet" type="CharacterBody2D"]
+[node name="bullet" type="CharacterBody2D" unique_id=1125090570]
 collision_layer = 8
-collision_mask = 1
 script = ExtResource("1_6y7z8")
-groups = ["player_projectile"]
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1541166272]
 shape = SubResource("RectangleShape2D_1")
 
-[node name="Hitbox" type="Area2D" parent="."]
+[node name="Hitbox" type="Area2D" parent="." unique_id=1896880817]
 collision_layer = 8
 collision_mask = 16
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox" unique_id=1627169438]
 shape = SubResource("RectangleShape2D_1")
 
-[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+[node name="Trail" type="Sprite2D" parent="."]
+show_behind_parent = true
+material = SubResource("ShaderMaterial_trail")
+texture = SubResource("GradientTexture2D_trail")
+offset = Vector2(-12, 0)
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=147866005]
 sprite_frames = SubResource("SpriteFrames_aj4mc")
 animation = &"idle"
-frame_progress = 0.613397
+frame_progress = 0.05469917

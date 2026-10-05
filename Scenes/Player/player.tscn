@@ -4,6 +4,11 @@
 [ext_resource type="Texture2D" uid="uid://tn06obry0yos" path="res://Rhundas Frames/idle/rhundas_idle_spritesheet.png" id="2_dv71o"]
 [ext_resource type="Texture2D" uid="uid://be8gf5e0q2swv" path="res://Rhundas Frames/idle/rhundas_spritesheet.png" id="3_r4ljw"]
 [ext_resource type="Script" uid="uid://cjlps8ugi1jdq" path="res://Scripts/Common/hurtbox.gd" id="4_hurtbox"]
+[ext_resource type="Texture2D" uid="uid://p3ycmh3urcty" path="res://Spritesheets/beams.png" id="5_beams"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_charge"]
+atlas = ExtResource("5_beams")
+region = Rect2(0, 24, 8, 8)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_kymcg"]
 size = Vector2(9, 15)
@@ -101,6 +106,11 @@ position_smoothing_speed = 6.0
 
 [node name="Muzzle" type="Marker2D" parent="." unique_id=543812334]
 position = Vector2(7, 3)
+
+[node name="ChargeEffect" type="Sprite2D" parent="Muzzle"]
+visible = false
+z_index = 1
+texture = SubResource("AtlasTexture_charge")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=181990051]
 sprite_frames = SubResource("SpriteFrames_6ce0r")

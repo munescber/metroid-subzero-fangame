@@ -6,11 +6,11 @@ class_name Missile
 # radius damage zone on impact instead of dealing damage on direct contact.
 
 @export var damage: int = 5
-@export var start_speed: float = 60.0
+@export var start_speed: float = 90.0
 @export var max_speed: float = 140.0
 @export var acceleration_time: float = 0.6
 @export var explosion_size: Vector2 = Vector2(16, 16)
-@export var explosion_duration: float = 1.0
+@export var explosion_duration: float = 0.6
 @export var lifetime: float = 3.0
 
 var direction: Vector2 = Vector2.RIGHT

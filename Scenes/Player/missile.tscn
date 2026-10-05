@@ -4,31 +4,28 @@
 [ext_resource type="Texture2D" uid="uid://bdc884tg6xc11" path="res://Spritesheets/missile.png" id="2_missile"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
-size = Vector2(6, 10.25)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_ws7dx"]
-atlas = ExtResource("2_missile")
-region = Rect2(16, 0, 16, 16)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_yr42k"]
-atlas = ExtResource("2_missile")
-region = Rect2(0, 16, 16, 16)
+size = Vector2(9, 11.25)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_modgi"]
 atlas = ExtResource("2_missile")
-region = Rect2(0, 0, 16, 16)
+region = Rect2(0, 48, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_gjktm"]
+atlas = ExtResource("2_missile")
+region = Rect2(16, 48, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_oibxu"]
+atlas = ExtResource("2_missile")
+region = Rect2(16, 16, 16, 16)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_missile"]
 animations = [{
 "frames": [{
 "duration": 1.0,
-"texture": SubResource("AtlasTexture_ws7dx")
+"texture": SubResource("AtlasTexture_modgi")
 }, {
 "duration": 1.0,
-"texture": SubResource("AtlasTexture_yr42k")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_ws7dx")
+"texture": SubResource("AtlasTexture_gjktm")
 }],
 "loop": 0,
 "name": &"explode",
@@ -36,7 +33,7 @@ animations = [{
 }, {
 "frames": [{
 "duration": 1.0,
-"texture": SubResource("AtlasTexture_modgi")
+"texture": SubResource("AtlasTexture_oibxu")
 }],
 "loop": 1,
 "name": &"idle",
@@ -51,23 +48,21 @@ collision_layer = 8
 script = ExtResource("1_missile")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1547615212]
-position = Vector2(0, 1.125)
 shape = SubResource("RectangleShape2D_body")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1814261062]
-position = Vector2(-1, -2)
+position = Vector2(0, -2)
 sprite_frames = SubResource("SpriteFrames_missile")
 animation = &"explode"
-frame = 2
+frame = 1
 frame_progress = 1.0
-speed_scale = 1.5
+speed_scale = 2.0
 
 [node name="Hitbox" type="Area2D" parent="." unique_id=1487285328]
 collision_layer = 8
 collision_mask = 16
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox" unique_id=1281985344]
-position = Vector2(0, 1)
 shape = SubResource("RectangleShape2D_body")
 
 [node name="ExplosionArea" type="Area2D" parent="." unique_id=2040483843]
@@ -76,5 +71,4 @@ collision_mask = 16
 monitoring = false
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="ExplosionArea" unique_id=530805556]
-position = Vector2(0, 1)
 shape = SubResource("RectangleShape2D_explosion")
