@@ -2,16 +2,16 @@ extends CharacterBody2D
 
 class_name Bullet
 
-# Bullet / beam settings.
-const SPEED := 120.0
-const LIFETIME := 2.0
-
+# Bullet / beam settings. Exported so derived projectiles (e.g. ChargeBeam)
+# can tune them from their own scene.
+@export var speed: float = 120.0
+@export var lifetime: float = 2.0
 @export var damage: int = 1
 @export var one_shot: bool = true
 
 var direction: Vector2 = Vector2.RIGHT
 var shooter: Node = null
-var life_timer: float = LIFETIME
+var life_timer: float = lifetime
 
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
 @onready var hitbox: Area2D = $Hitbox
@@ -26,7 +26,7 @@ func _ready() -> void:
 		hitbox.connect("body_entered", Callable(self, "_on_body_entered"))
 
 func _physics_process(delta: float) -> void:
-	var motion := direction.normalized() * SPEED * delta
+	var motion := direction.normalized() * speed * delta
 	var collision := move_and_collide(motion)
 
 	if collision:
@@ -43,7 +43,7 @@ func _physics_process(delta: float) -> void:
 func start(dir: Vector2, shooter_node: Node = null) -> void:
 	direction = dir.normalized()
 	shooter = shooter_node
-	life_timer = LIFETIME
+	life_timer = lifetime
 	rotation = direction.angle()
 
 	if shooter is CollisionObject2D:

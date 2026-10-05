@@ -14,6 +14,8 @@ const AIM_DOWN_ANGLE := -PI/4
 const DASH_DISTANCE := 48.0
 const DASH_SPEED := 500.0
 const DASH_COOLDOWN := 1
+const CHARGE_EFFECT_MIN_SCALE := 0.4
+const CHARGE_EFFECT_MAX_SCALE := 1.0
 
 # Gravity defined in Project Settings
 var gravity: float = ProjectSettings.get_setting("physics/2d/default_gravity")
@@ -21,11 +23,20 @@ var gravity: float = ProjectSettings.get_setting("physics/2d/default_gravity")
 # Reference to the AnimatedSprite2D node
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
 @onready var muzzle = $Muzzle
+@onready var charge_effect: Sprite2D = $Muzzle/ChargeEffect
 
 var shoot_timer: float = 0.0
 var missile_timer: float = 0.0
 var bullet_scene: PackedScene = preload("res://Scenes/Player/bullet.tscn")
+var charge_beam_scene: PackedScene = preload("res://Scenes/Player/charge_beam.tscn")
 var missile_scene: PackedScene = preload("res://Scenes/Player/missile.tscn")
+
+# Charge beam state: pressing "shoot" starts a charge. On release the player fires
+# a normal bullet, or the charge beam if held past charge_time_required.
+@export var charge_time_required: float = 1.0
+var is_charging: bool = false
+var is_charged: bool = false
+var charge_time: float = 0.0
 var aim_angle: float = 0.0
 var dash_cooldown_timer: float = 0.0
 var dash_remaining_distance: float = 0.0
@@ -144,18 +155,82 @@ func handle_shoot(delta):
 	if Input.is_action_just_pressed("shoot"):
 		if Input.is_action_pressed("missile_mode"):
 			_try_fire_missile()
-		elif shoot_timer <= 0.0:
-			_fire_bullet()
+		else:
+			_start_charge()
+
+	_update_charge(delta)
 
 
 func _fire_bullet() -> void:
 	shoot_timer = SHOOT_COOLDOWN
+	_spawn_projectile(bullet_scene)
+
+
+func _fire_charge_beam() -> void:
+	_spawn_projectile(charge_beam_scene)
+
+
+func _spawn_projectile(scene: PackedScene) -> void:
 	var final_dir: Vector2 = get_aim_direction()
-	var bullet = bullet_scene.instantiate()
-	bullet.start(final_dir, self)
+	var projectile = scene.instantiate()
+	projectile.start(final_dir, self)
 	# spawn slightly ahead so it doesn't immediately collide with player
-	bullet.global_position = muzzle.global_position + final_dir * 6
-	get_parent().add_child(bullet)
+	projectile.global_position = muzzle.global_position + final_dir * 6
+	get_parent().add_child(projectile)
+
+
+func _start_charge() -> void:
+	is_charging = true
+	is_charged = false
+	charge_time = 0.0
+
+
+func _update_charge(delta: float) -> void:
+	if not is_charging:
+		return
+
+	# entering missile mode while holding cancels the charge
+	if Input.is_action_pressed("missile_mode"):
+		_reset_charge()
+		return
+
+	if not Input.is_action_pressed("shoot"):
+		var was_charged := is_charged
+		_reset_charge()
+		if was_charged:
+			_fire_charge_beam()
+		elif shoot_timer <= 0.0:
+			_fire_bullet()
+		return
+
+	charge_time += delta
+	if not is_charged and charge_time >= charge_time_required:
+		is_charged = true
+		if debug_enabled:
+			print_debug("[Player] Charge beam ready")
+	_update_charge_visual()
+
+
+func _reset_charge() -> void:
+	is_charging = false
+	is_charged = false
+	charge_time = 0.0
+	charge_effect.visible = false
+
+
+func _update_charge_visual() -> void:
+	var ratio: float = clampf(charge_time / maxf(charge_time_required, 0.001), 0.0, 1.0)
+	charge_effect.visible = true
+	if is_charged:
+		# fast pulse + brighter flash so "ready" is obvious without a UI timer
+		var pulse: float = 0.5 + 0.5 * sin(charge_time * 30.0)
+		charge_effect.scale = Vector2.ONE * CHARGE_EFFECT_MAX_SCALE * (1.0 + 0.3 * pulse)
+		charge_effect.modulate = Color(1, 1, 1, 1).lerp(Color(1.4, 1.4, 1.4, 1), pulse)
+	else:
+		# grows and fades in as the charge builds
+		var pulse: float = 0.5 + 0.5 * sin(charge_time * 12.0)
+		charge_effect.scale = Vector2.ONE * lerpf(CHARGE_EFFECT_MIN_SCALE, CHARGE_EFFECT_MAX_SCALE, ratio)
+		charge_effect.modulate = Color(1, 1, 1, lerpf(0.3, 0.8, ratio) * (0.8 + 0.2 * pulse))
 
 
 func _try_fire_missile() -> void:

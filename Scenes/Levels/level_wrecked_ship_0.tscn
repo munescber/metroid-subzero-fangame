@@ -147,7 +147,7 @@ tile_map_data = PackedByteArray("AAAAAP//AAADAAAAAAABAP//AAABAAAAAAACAP//AAABAAA
 tile_set = SubResource("TileSet_gbtge")
 
 [node name="player_rundas" parent="." unique_id=146499936 instance=ExtResource("2_6rmbd")]
-position = Vector2(817, -46)
+position = Vector2(18, -91)
 debug_enabled = true
 
 [node name="rhinobug" parent="." unique_id=1191703244 instance=ExtResource("3_p28h1")]
