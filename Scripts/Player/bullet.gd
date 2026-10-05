@@ -15,6 +15,9 @@ var life_timer: float = LIFETIME
 
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
 @onready var hitbox: Area2D = $Hitbox
+@onready var trail: Sprite2D = $Trail
+
+var distance_travelled: float = 0.0
 
 func _ready() -> void:
 	sprite.play("idle")
@@ -29,6 +32,9 @@ func _physics_process(delta: float) -> void:
 	if collision:
 		_on_hit(collision.get_collider())
 		return
+
+	distance_travelled += motion.length()
+	trail.material.set_shader_parameter("trail_length", distance_travelled)
 
 	life_timer -= delta
 	if life_timer <= 0.0:
