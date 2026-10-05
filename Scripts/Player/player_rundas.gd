@@ -12,8 +12,10 @@ const BULLET_OFFSET := Vector2(12, 0)
 const AIM_UP_ANGLE := PI/4
 const AIM_DOWN_ANGLE := -PI/4
 const DASH_DISTANCE := 48.0
-const DASH_SPEED := 500.0
-const DASH_COOLDOWN := 1
+const DASH_SPEED := 330.0
+const DASH_COOLDOWN := 1.0
+const DASH_WINDUP := 0.06  # brief mid-air hang before the burst
+const DASH_AFTERIMAGE_INTERVAL := 0.03
 const CHARGE_EFFECT_MIN_SCALE := 0.4
 const CHARGE_EFFECT_MAX_SCALE := 1.0
 
@@ -42,6 +44,9 @@ var dash_cooldown_timer: float = 0.0
 var dash_remaining_distance: float = 0.0
 var dash_direction: float = 1.0
 var is_dashing: bool = false
+var dash_windup_timer: float = 0.0
+var dash_afterimage_timer: float = 0.0
+var dash_afterimage_scene: PackedScene = preload("res://Scenes/Player/dash_afterimage.tscn")
 
 # Health component (instantiated at runtime)
 var health_comp: HealthComponent = null
@@ -138,9 +143,9 @@ func _physics_process(delta):
 
 	move_and_slide()
 
-	if is_dashing and is_on_wall():
-		is_dashing = false
-		velocity.x = 0.0
+	# the wall check is skipped during the windup, since no dash movement has happened yet
+	if is_dashing and dash_windup_timer <= 0.0 and is_on_wall():
+		_end_dash()
 
 
 func handle_shoot(delta):
@@ -260,19 +265,56 @@ func handle_dash(delta):
 	dash_cooldown_timer = max(dash_cooldown_timer - delta, 0.0)
 
 	if is_dashing:
-		velocity.x = dash_direction * DASH_SPEED
-		dash_remaining_distance -= DASH_SPEED * delta
-		if dash_remaining_distance <= 0.0:
-			is_dashing = false
-			velocity.x = 0.0
+		_update_dash(delta)
 		return
 
-	if Input.is_action_just_pressed("dash") and dash_cooldown_timer <= 0.0:
-		is_dashing = true
-		dash_cooldown_timer = DASH_COOLDOWN
-		dash_remaining_distance = DASH_DISTANCE
-		dash_direction = -1.0 if sprite.flip_h else 1.0
-		velocity.x = dash_direction * DASH_SPEED
+	if Input.is_action_just_pressed("dash") and dash_cooldown_timer <= 0.0 and knockback_lock_timer <= 0.0:
+		_start_dash()
+
+
+func _start_dash() -> void:
+	is_dashing = true
+	dash_cooldown_timer = DASH_COOLDOWN
+	dash_remaining_distance = DASH_DISTANCE
+	dash_windup_timer = DASH_WINDUP
+	dash_afterimage_timer = 0.0
+	dash_direction = -1.0 if sprite.flip_h else 1.0
+	# the dash replaces any jump/fall momentum instead of inheriting it
+	velocity = Vector2.ZERO
+
+
+func _update_dash(delta: float) -> void:
+	# movement itself is done by the single move_and_slide() in _physics_process
+	velocity.y = 0.0
+
+	if dash_windup_timer > 0.0:
+		dash_windup_timer -= delta
+		velocity.x = 0.0
+		return
+
+	velocity.x = dash_direction * DASH_SPEED
+	dash_remaining_distance -= DASH_SPEED * delta
+
+	dash_afterimage_timer -= delta
+	if dash_afterimage_timer <= 0.0:
+		dash_afterimage_timer = DASH_AFTERIMAGE_INTERVAL
+		_spawn_afterimage()
+
+	if dash_remaining_distance <= 0.0:
+		_end_dash()
+
+
+func _end_dash() -> void:
+	is_dashing = false
+	dash_windup_timer = 0.0
+	# no leftover momentum: gravity takes over from zero if airborne
+	velocity = Vector2.ZERO
+
+
+func _spawn_afterimage() -> void:
+	var afterimage: DashAfterimage = dash_afterimage_scene.instantiate()
+	get_parent().add_child(afterimage)
+	afterimage.setup(sprite)
 
 
 # ==================================================
@@ -287,6 +329,8 @@ func apply_gravity(delta):
 
 
 func handle_jump():
+	if is_dashing:
+		return
 	if Input.is_action_just_pressed("jump") and is_on_floor():
 		velocity.y = JUMP_FORCE
 
@@ -349,6 +393,10 @@ func take_damage(amount: int, source = null) -> void:
 		if debug_enabled:
 			print_debug("[Player] Ignored due to invulnerability.")
 		return
+
+	# damage cancels the dash so the knockback isn't overwritten
+	if is_dashing:
+		_end_dash()
 
 	# apply knockback using source if available
 	if source and source is Node2D:
