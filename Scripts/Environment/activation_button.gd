@@ -52,8 +52,10 @@ func _on_area_entered(area: Area2D) -> void:
 	_trigger()
 
 func _is_player_projectile(area: Area2D) -> bool:
+	# Bullet covers the normal shot and ChargeBeam (which extends Bullet);
+	# Missile is a separate class, and both its Hitbox and ExplosionArea sit under it.
 	var owner_node := area.get_parent()
-	return owner_node is Bullet
+	return owner_node is Bullet or owner_node is Missile
 
 func _trigger() -> void:
 	if one_shot and _triggered:

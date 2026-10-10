@@ -1,0 +1,29 @@
+[gd_scene format=3]
+
+[ext_resource type="Texture2D" uid="uid://b3gikucofefs3" path="res://Tilesets/miscellaneous.png" id="1_misc"]
+[ext_resource type="Script" path="res://Scripts/Environment/rising_gate.gd" id="2_script"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_gate"]
+size = Vector2(16, 32)
+
+[node name="RisingGate" type="Node2D"]
+script = ExtResource("2_script")
+
+[node name="Body" type="AnimatableBody2D" parent="."]
+z_index = -1
+collision_mask = 0
+
+[node name="TileTop" type="Sprite2D" parent="Body"]
+position = Vector2(0, -8)
+texture = ExtResource("1_misc")
+region_enabled = true
+region_rect = Rect2(48, 32, 16, 16)
+
+[node name="TileBottom" type="Sprite2D" parent="Body"]
+position = Vector2(0, 8)
+texture = ExtResource("1_misc")
+region_enabled = true
+region_rect = Rect2(48, 32, 16, 16)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Body"]
+shape = SubResource("RectangleShape2D_gate")

@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://bojvrk1041dh" path="res://Scripts/Environment/activation_button.gd" id="2_script"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_button"]
-size = Vector2(16, 16)
+size = Vector2(17.6, 17.6)
 
 [node name="ActivationButton" type="Area2D" unique_id=1215577465]
 collision_layer = 0

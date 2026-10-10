@@ -19,7 +19,8 @@ An `Area2D` that reacts to two independent trigger paths and calls
 
 - **Stepped on** — `body_entered`, checks `body.is_in_group("player")`.
 - **Shot** — `area_entered`, checks that the entering area's parent `is
-  Bullet` (the `class_name Bullet` added to `bullet.gd`). This intentionally
+  Bullet` (normal shot and `ChargeBeam`, which extends `Bullet`) or `is
+  Missile` (`class_name Missile` in `missile.gd`). This intentionally
   does **not** use a scene-saved `group`, because a group added directly to
   a `.tscn` file can be silently lost if the scene is open in the editor and
   gets re-saved from stale in-memory state — using the script's own class
@@ -30,6 +31,8 @@ An `Area2D` that reacts to two independent trigger paths and calls
 - `collision_layer = 0` — the button itself is never something else
   collides *into*; it only listens.
 - `collision_mask = 2 | 8` (PlayerBody + Hitbox).
+- Trigger shape is 17.6×17.6, baked into the scene. Keep instance scale at 1
+  in levels so every button has the same sensitivity.
 
 ### Why layer 8 needed filtering
 
