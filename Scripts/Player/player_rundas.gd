@@ -5,7 +5,6 @@ extends CharacterBody2D
 # ==================================================
 
 const MOVE_SPEED := 75.0
-const JUMP_FORCE := -320.0
 const SHOOT_COOLDOWN := 0.20
 const MISSILE_COOLDOWN := 0.6
 const BULLET_OFFSET := Vector2(12, 0)
@@ -18,6 +17,17 @@ const DASH_WINDUP := 0.06  # brief mid-air hang before the burst
 const DASH_AFTERIMAGE_INTERVAL := 0.03
 const CHARGE_EFFECT_MIN_SCALE := 0.4
 const CHARGE_EFFECT_MAX_SCALE := 1.0
+
+# Variable jump height: the jump always starts at jump_velocity (full jump). Releasing
+# the button while still rising multiplies the upward speed once by jump_release_multiplier.
+# Initial upward speed in px/s (negative = up). More negative = higher full jump.
+@export var jump_velocity: float = -320.0
+# Fraction of the upward speed kept when jump is released early (0 = stop rising at once,
+# 1 = no cut). Lower values give shorter tap jumps. Suggested range: 0.3 - 0.6.
+@export_range(0.0, 1.0, 0.05) var jump_release_multiplier: float = 0.5
+# True from the jump start until the player lands, starts falling, dashes or gets hit.
+# It restricts the cut to the player's own jump, and makes it happen at most once.
+var is_jump_rising: bool = false
 
 # Gravity defined in Project Settings
 var gravity: float = ProjectSettings.get_setting("physics/2d/default_gravity")
@@ -281,6 +291,7 @@ func _start_dash() -> void:
 	dash_direction = -1.0 if sprite.flip_h else 1.0
 	# the dash replaces any jump/fall momentum instead of inheriting it
 	velocity = Vector2.ZERO
+	is_jump_rising = false
 
 
 func _update_dash(delta: float) -> void:
@@ -332,7 +343,18 @@ func handle_jump():
 	if is_dashing:
 		return
 	if Input.is_action_just_pressed("jump") and is_on_floor():
-		velocity.y = JUMP_FORCE
+		velocity.y = jump_velocity
+		is_jump_rising = true
+
+	if not is_jump_rising:
+		return
+
+	# the jump ends at the apex, so later releases can't touch falling speed
+	if velocity.y >= 0.0:
+		is_jump_rising = false
+	elif not Input.is_action_pressed("jump"):
+		velocity.y *= jump_release_multiplier
+		is_jump_rising = false
 
 
 func handle_horizontal_movement():
@@ -407,6 +429,8 @@ func take_damage(amount: int, source = null) -> void:
 		# generic upward knockback
 		velocity.y = -abs(knockback_y)
 	knockback_lock_timer = knockback_lock_duration
+	# the knockback's upward speed must not be cut by releasing jump
+	is_jump_rising = false
 	
 	# mark invulnerable and start timers
 	invulnerable = true
