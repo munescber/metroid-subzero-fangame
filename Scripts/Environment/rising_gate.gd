@@ -4,7 +4,7 @@ class_name RisingGate
 
 ## A one-shot gate that slides straight up when its ActivationButton fires.
 ## Movement lives here; appearance and collision live in the scene:
-##   Body/TileTop, Body/TileBottom -> texture + region_rect (multi-select both and edit in the Inspector)
+##   Body/TileTop, Body/TileMiddle, Body/TileBottom -> texture + region_rect (multi-select all and edit in the Inspector)
 ##   Body/CollisionShape2D         -> collision size (edit separately if the sprite size changes)
 ## The gate's closed position is wherever Body sits in the editor, so move the
 ## whole node (or Body) to place it. It rises toward decreasing Y by rise_distance.
@@ -12,7 +12,7 @@ class_name RisingGate
 signal opened
 
 @export_group("Movement")
-@export var rise_distance: float = 32.0
+@export var rise_distance: float = 48.0
 @export var rise_duration: float = 1.0
 @export var start_delay: float = 0.0
 @export var ease_type: Tween.EaseType = Tween.EASE_IN_OUT
