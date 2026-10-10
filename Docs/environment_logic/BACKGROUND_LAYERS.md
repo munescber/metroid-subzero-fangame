@@ -6,13 +6,14 @@ First established to fix `RisingPlatform`'s draw order (see
 [RISING_PLATFORM.md](RISING_PLATFORM.md)), but the pattern applies to any
 similar "hidden until triggered" object.
 
-## The three conceptual layers
+## The four conceptual layers
 
 | Layer | Purpose | Mechanism | `z_index` |
 |---|---|---|---|
 | 0 — background | Decoration behind everything; never collides | `TileMapLayer` (or `Sprite2D`s) with a `TileSet` that defines **no physics layer** | `-2` |
 | 1 — hidden/dynamic objects | Things that should be masked by real terrain until revealed | Individual nodes (e.g. `RisingPlatform.Body`) | `-1` |
 | 2 — real walls/floor | Actual solid terrain, the thing players collide with | `TileMapLayer` with a `TileSet` that **does** define a physics layer | `0` (default) |
+| 3 — foreground | Purely visual tiles drawn over the player and projectiles (e.g. a door frame the player walks behind) | `TileMapLayer` with a `TileSet` that defines **no** physics layer | `2` |
 
 Godot resolves draw order by `z_index` first, and only falls back to
 scene-tree order when `z_index` is tied. Giving every layer an explicit,
@@ -30,6 +31,11 @@ tied with the `TileMapLayer` at `0`, and won by being later in the tree).
   - `TileMapLayer` (existing) — unchanged, `z_index = 0` (default),
     `TileSet_gbtge` with `physics_layer_0` — this is the real collidable
     terrain.
+  - `ForegroundTileMapLayer` — `z_index = 2`, uses `TileSet_fg` (`miscellaneous.png`,
+    no physics layer). Currently holds the room gate's hatch frame (atlas tiles
+    `(9,0..2)` at cells `(75,-6..-4)`). `2` is used because the player's
+    `ChargeEffect` sprite is at `1`; the player, bullets, charge beam, missiles
+    and dash afterimages are all at `0`, so every one of them draws behind it.
 - `Scenes/Environment/rising_platform.tscn`:
   - `Body` — `z_index = -1`, always draws behind the real terrain layer
     regardless of tree order.
@@ -74,6 +80,7 @@ for free.
 
 ## Related
 
+- [ROOM_GATE.md](ROOM_GATE.md) — first consumer of the foreground layer (hatch frame).
 - [RISING_PLATFORM.md](RISING_PLATFORM.md) — first consumer of this
   convention, see its "Draw order — resolved" section for the original bug.
 - [ACTIVATION_BUTTON.md](ACTIVATION_BUTTON.md) — reusable trigger that can

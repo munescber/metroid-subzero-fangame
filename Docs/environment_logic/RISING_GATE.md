@@ -18,8 +18,9 @@ and shares no code with it.
 RisingGate (Node2D, script: rising_gate.gd)
 └── Body (AnimatableBody2D)      <- the part that moves; z_index = -1, collision_mask = 0
     ├── TileTop (Sprite2D)       <- miscellaneous.png region (48, 32, 16, 16), at (0, -8)
-    ├── TileBottom (Sprite2D)    <- same region, at (0, 8)
-    └── CollisionShape2D         <- RectangleShape2D 16x32, centered
+    ├── TileMiddle (Sprite2D)    <- same region, at (0, 8)
+    ├── TileBottom (Sprite2D)    <- same region, at (0, 24)
+    └── CollisionShape2D         <- RectangleShape2D 16x48, at (0, 8)
 ```
 
 `Body` is centered on the gate's origin. Its position in the editor is the
@@ -87,7 +88,7 @@ Inspector if the gate should draw in front instead.
 
 | Group | Property | Default | Meaning |
 |---|---|---|---|
-| Movement | `rise_distance` | 32 | Pixels moved upward |
+| Movement | `rise_distance` | 48 | Pixels moved upward |
 | Movement | `rise_duration` | 1.0 | Seconds the rise takes |
 | Movement | `start_delay` | 0.0 | Seconds to wait before rising |
 | Movement | `ease_type` | In/Out | Tween easing |
@@ -100,7 +101,7 @@ Public API: `activate()`, state flags `is_open` / `is_moving`, signal `opened`.
 ## Customizing the sprite
 
 1. Open `rising_gate.tscn`.
-2. Ctrl+click `Body/TileTop` and `Body/TileBottom` to edit both at once.
+2. Ctrl+click `Body/TileTop`, `Body/TileMiddle` and `Body/TileBottom` to edit them at once.
 3. In the Inspector, change **Texture** or **Region → Rect**.
 
 If the new sprite is not 16×32 in total, also resize `Body/CollisionShape2D`
