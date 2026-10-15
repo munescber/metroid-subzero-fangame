@@ -37,9 +37,16 @@ Tracks the version and status of implemented game components.
 ## Player
 
 ### Player (player_rundas)
-- **Current Version:** 1.1
-- **Status:** Core mechanics stable, knockback feedback improved
-- **Last Updated:** 2026-09-30
+- **Current Version:** 1.2.0
+- **Status:** Core mechanics stable, jump physics retuned, larger sprite in progress
+- **Last Updated:** 2026-10-14
+- **Changes in 1.2.0:**
+  - Dedicated `jump_gravity` (800), independent of the project's `default_gravity`
+  - Soft apex: reduced gravity (x0.65) while `abs(velocity.y)` is under 60 px/s
+  - `max_fall_speed` cap (400 px/s) on normal airborne falling
+  - New `fall` animation, played when descending
+  - 16x16 player archived to `Scenes/Player/Archive/player_v1.tscn` (git tag `player-v1-16px`)
+  - See `Docs/player_logic/PLAYER_LOGIC.md`
 - **Changes in 1.1:**
   - Added knockback lock timer (0.2s) to preserve knockback visual feedback
   - Prevents player input from immediately canceling knockback velocity

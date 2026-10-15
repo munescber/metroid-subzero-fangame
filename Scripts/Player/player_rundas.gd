@@ -29,8 +29,17 @@ const CHARGE_EFFECT_MAX_SCALE := 1.0
 # It restricts the cut to the player's own jump, and makes it happen at most once.
 var is_jump_rising: bool = false
 
-# Gravity defined in Project Settings
-var gravity: float = ProjectSettings.get_setting("physics/2d/default_gravity")
+# The player's own gravity in px/s^2, independent of the project's default_gravity
+# (which other bodies, such as the rhinobug, still read).
+@export var jump_gravity: float = 800.0
+# Near the apex (|velocity.y| below the threshold) gravity is scaled by this multiplier,
+# which makes the player hang briefly. It applies to tap and held jumps alike, and it
+# never touches velocity, so the jump-release cut keeps working. 1.0 disables it.
+@export_range(0.1, 1.0, 0.05) var apex_gravity_multiplier: float = 0.65
+# Vertical speed in px/s under which the apex multiplier is active.
+@export var apex_velocity_threshold: float = 60.0
+# Terminal downward speed in px/s, applied to normal airborne falling only.
+@export var max_fall_speed: float = 400.0
 
 # Reference to the AnimatedSprite2D node
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
@@ -335,8 +344,13 @@ func _spawn_afterimage() -> void:
 func apply_gravity(delta):
 	if is_dashing:
 		return
-	if not is_on_floor():
-		velocity.y += gravity * delta
+	if is_on_floor():
+		return
+
+	var applied_gravity := jump_gravity
+	if abs(velocity.y) < apex_velocity_threshold:
+		applied_gravity *= apex_gravity_multiplier
+	velocity.y = min(velocity.y + applied_gravity * delta, max_fall_speed)
 
 
 func handle_jump():
@@ -398,7 +412,9 @@ func handle_aim() -> void:
 func update_animation():
 
 	if !is_on_floor():
-		sprite.play("jump")
+		# the air dash zeroes velocity.y, so keep the current pose instead of flipping to "fall"
+		if not is_dashing:
+			sprite.play("jump" if velocity.y < 0.0 else "fall")
 
 	elif abs(velocity.x) > 0:
 		sprite.play("walk")
