@@ -2,7 +2,7 @@ extends CharacterBody2D
 
 class_name RadialProjectile
 
-const LIFETIME = 5.0
+const LIFETIME = 2.0
 
 @export var damage: int = 1
 var direction: Vector2 = Vector2.RIGHT

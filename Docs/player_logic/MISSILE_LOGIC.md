@@ -134,6 +134,11 @@ each collider:
   (i.e. it's a `Hurtbox`), which forwards into that entity's normal
   `take_damage()` → `HealthComponent` flow like any other hit — see
   `HITBOX_HURTBOX.md`.
+- A second query (`_apply_solid_damage()`) masks the World layer (`1`) for
+  bodies and calls `take_damage(damage, shooter)` on those that have it, so
+  solid objects like `BreakableTile` (see `BREAKABLE_TILE.md`) break from
+  missiles. It skips the shooter and bodies with a `Hurtbox` child, since
+  those were already hit through that Hurtbox.
 - Damage is applied exactly once per overlapping Hurtbox, in a single pass,
   not on a timer — an enemy standing in the blast at the instant of the query
   takes one hit, and walking into the lingering explosion sprite afterward

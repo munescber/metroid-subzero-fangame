@@ -6,8 +6,8 @@ class_name Missile
 # radius damage zone on impact instead of dealing damage on direct contact.
 
 @export var damage: int = 5
-@export var start_speed: float = 90.0
-@export var max_speed: float = 140.0
+@export var start_speed: float = 120.0
+@export var max_speed: float = 180.0
 @export var acceleration_time: float = 0.6
 @export var explosion_size: Vector2 = Vector2(16, 16)
 @export var explosion_duration: float = 0.6
@@ -121,3 +121,25 @@ func _apply_explosion_damage() -> void:
 
 		if area.has_method("receive_hit"):
 			area.call("receive_hit", damage, shooter)
+
+	_apply_solid_damage(space_state, shape)
+
+# Solid objects (e.g. BreakableTile) are damageable bodies on the World layer
+# with take_damage(), not Hurtbox areas, so they need their own pass.
+func _apply_solid_damage(space_state: PhysicsDirectSpaceState2D, shape: Shape2D) -> void:
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = shape
+	query.transform = Transform2D(0.0, global_position)
+	query.collision_mask = 1 # World layer
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+
+	for result: Dictionary in space_state.intersect_shape(query):
+		var body: Node = result.get("collider")
+		if body == null or body == shooter or body == self:
+			continue
+		# bodies with a Hurtbox were already damaged through it above
+		if body.has_node("Hurtbox"):
+			continue
+		if body.has_method("take_damage"):
+			body.call("take_damage", damage, shooter)

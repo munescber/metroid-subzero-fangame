@@ -1,0 +1,15 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Environment/spike_hazard.gd" id="1_spike"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_spike"]
+resource_local_to_scene = true
+size = Vector2(16, 16)
+
+[node name="SpikeHazard" type="Area2D"]
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("1_spike")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_spike")

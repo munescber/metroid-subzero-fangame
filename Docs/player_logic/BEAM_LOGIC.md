@@ -15,7 +15,8 @@ forms:
 The Charge Beam is not a separate weapon system. It is a second projectile
 scene that reuses the normal beam's script (`ChargeBeam extends Bullet`), and
 the player picks which scene to spawn on release. The secondary weapon,
-missiles, is documented in `MISSILE_LOGIC.md`.
+missiles, is documented in `MISSILE_LOGIC.md`. The hit animation both beams
+play on impact is documented in `BEAM_IMPACT.md`.
 
 Player-facing behaviour (non-technical)
 ----------------------------------------

@@ -14,7 +14,7 @@ const DASH_DISTANCE := 48.0
 const DASH_SPEED := 330.0
 const DASH_COOLDOWN := 1.0
 const DASH_WINDUP := 0.06  # brief mid-air hang before the burst
-const DASH_AFTERIMAGE_INTERVAL := 0.03
+const DASH_AFTERIMAGE_INTERVAL := 0.04
 const CHARGE_EFFECT_MIN_SCALE := 0.4
 const CHARGE_EFFECT_MAX_SCALE := 1.0
 
@@ -31,7 +31,7 @@ var is_jump_rising: bool = false
 
 # The player's own gravity in px/s^2, independent of the project's default_gravity
 # (which other bodies, such as the rhinobug, still read).
-@export var jump_gravity: float = 800.0
+@export var jump_gravity: float = 750.0
 # Near the apex (|velocity.y| below the threshold) gravity is scaled by this multiplier,
 # which makes the player hang briefly. It applies to tap and held jumps alike, and it
 # never touches velocity, so the jump-release cut keeps working. 1.0 disables it.
