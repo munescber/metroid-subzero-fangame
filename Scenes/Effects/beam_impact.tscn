@@ -1,0 +1,79 @@
+[gd_scene format=3 uid="uid://cilwcjh0xykjf"]
+
+[ext_resource type="Texture2D" uid="uid://p3ycmh3urcty" path="res://Spritesheets/beams.png" id="1_1vga7"]
+[ext_resource type="Script" uid="uid://c6xkm7tsmlxsh" path="res://Scripts/Effects/beam_impact.gd" id="1_impact"]
+[ext_resource type="Texture2D" uid="uid://btvjjgx2uywyg" path="res://Spritesheets/beam_impact_chargebeam.png" id="2_ecrae"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ecrae"]
+atlas = ExtResource("1_1vga7")
+region = Rect2(8, 40, 8, 8)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_1kwxm"]
+atlas = ExtResource("1_1vga7")
+region = Rect2(16, 40, 8, 8)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ow0ek"]
+atlas = ExtResource("1_1vga7")
+region = Rect2(24, 40, 8, 8)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_w0vif"]
+atlas = ExtResource("1_1vga7")
+region = Rect2(32, 40, 8, 8)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_h3jwk"]
+atlas = ExtResource("2_ecrae")
+region = Rect2(0, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_bcsyt"]
+atlas = ExtResource("2_ecrae")
+region = Rect2(16, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_hb4ot"]
+atlas = ExtResource("2_ecrae")
+region = Rect2(0, 16, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ccyry"]
+atlas = ExtResource("2_ecrae")
+region = Rect2(16, 16, 16, 16)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_impact"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ecrae")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_1kwxm")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ow0ek")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_w0vif")
+}],
+"loop": 0,
+"name": &"impact",
+"speed": 10.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_h3jwk")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_bcsyt")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_hb4ot")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ccyry")
+}],
+"loop": 0,
+"name": &"impact_charge",
+"speed": 10.0
+}]
+
+[node name="BeamImpact" type="AnimatedSprite2D" unique_id=1974788901]
+sprite_frames = SubResource("SpriteFrames_impact")
+animation = &"impact"
+script = ExtResource("1_impact")

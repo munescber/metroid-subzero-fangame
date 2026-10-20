@@ -5,7 +5,7 @@ class_name BouncingFireball
 # Debug toggle
 @export var debug_enabled: bool = false
 
-const LIFETIME = 6000.0
+const LIFETIME = 3000.0
 const MAX_BOUNCES = 5
 
 @export var damage: int = 1

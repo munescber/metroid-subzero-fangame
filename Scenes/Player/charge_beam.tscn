@@ -1,8 +1,11 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://dfo2q1s105m58"]
 
-[ext_resource type="Script" path="res://Scripts/Player/charge_beam.gd" id="1_beam"]
+[ext_resource type="Script" uid="uid://b40e8o7c33jtu" path="res://Scripts/Player/charge_beam.gd" id="1_beam"]
 [ext_resource type="Texture2D" uid="uid://p3ycmh3urcty" path="res://Spritesheets/beams.png" id="2_beams"]
-[ext_resource type="Shader" path="res://Scenes/Effects/bullet_trail.gdshader" id="3_trail"]
+[ext_resource type="Shader" uid="uid://cskemq3wlaiqi" path="res://Scenes/Effects/bullet_trail.gdshader" id="3_trail"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_beam"]
+size = Vector2(7, 7.5)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_trail"]
 resource_local_to_scene = true
@@ -20,8 +23,17 @@ shader_parameter/trail_length = 0.0
 width = 40
 height = 16
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_beam"]
-size = Vector2(7, 7.5)
+[sub_resource type="AtlasTexture" id="AtlasTexture_rp6fl"]
+atlas = ExtResource("2_beams")
+region = Rect2(0, 24, 8, 8)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_fcekm"]
+atlas = ExtResource("2_beams")
+region = Rect2(8, 24, 8, 8)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_8dvjf"]
+atlas = ExtResource("2_beams")
+region = Rect2(16, 24, 8, 8)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_f1"]
 atlas = ExtResource("2_beams")
@@ -43,6 +55,20 @@ region = Rect2(24, 16, 8, 8)
 animations = [{
 "frames": [{
 "duration": 1.0,
+"texture": SubResource("AtlasTexture_rp6fl")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_fcekm")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_8dvjf")
+}],
+"loop": 1,
+"name": &"idle",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
 "texture": SubResource("AtlasTexture_f1")
 }, {
 "duration": 1.0,
@@ -54,33 +80,35 @@ animations = [{
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_f4")
 }],
-"loop": true,
-"name": &"idle",
+"loop": 1,
+"name": &"idle_temp",
 "speed": 10.0
 }]
 
-[node name="ChargeBeam" type="CharacterBody2D"]
+[node name="ChargeBeam" type="CharacterBody2D" unique_id=452770386]
 collision_layer = 8
 script = ExtResource("1_beam")
 damage = 3
+impact_animation = &"impact_charge"
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=295681891]
 shape = SubResource("RectangleShape2D_beam")
 
-[node name="Hitbox" type="Area2D" parent="."]
+[node name="Hitbox" type="Area2D" parent="." unique_id=888862416]
 collision_layer = 8
 collision_mask = 16
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox" unique_id=1844811102]
 shape = SubResource("RectangleShape2D_beam")
 
-[node name="Trail" type="Sprite2D" parent="."]
+[node name="Trail" type="Sprite2D" parent="." unique_id=682773565]
 show_behind_parent = true
 material = SubResource("ShaderMaterial_trail")
 texture = SubResource("GradientTexture2D_trail")
 offset = Vector2(-20, 0)
 
-[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1044093963]
 scale = Vector2(1.5, 1.5)
 sprite_frames = SubResource("SpriteFrames_beam")
 animation = &"idle"
+frame_progress = 0.58526796

@@ -1,0 +1,25 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Environment/breakable_tile.gd" id="1_tile"]
+[ext_resource type="Texture2D" uid="uid://bmg2gysobj2qf" path="res://Tilesets/wrecked_ship.png" id="2_tileset"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_block"]
+resource_local_to_scene = true
+atlas = ExtResource("2_tileset")
+region = Rect2(96, 48, 16, 16)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_block"]
+resource_local_to_scene = true
+size = Vector2(16, 16)
+
+[node name="BreakableTile" type="StaticBody2D"]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("1_tile")
+texture = SubResource("AtlasTexture_block")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = SubResource("AtlasTexture_block")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_block")

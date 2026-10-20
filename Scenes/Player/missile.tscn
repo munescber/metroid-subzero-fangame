@@ -6,6 +6,26 @@
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
 size = Vector2(9, 11.25)
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_b2flv"]
+atlas = ExtResource("2_missile")
+region = Rect2(0, 80, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_u7var"]
+atlas = ExtResource("2_missile")
+region = Rect2(16, 80, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_c0kl8"]
+atlas = ExtResource("2_missile")
+region = Rect2(32, 80, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_kyq2p"]
+atlas = ExtResource("2_missile")
+region = Rect2(48, 80, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_tv2x6"]
+atlas = ExtResource("2_missile")
+region = Rect2(64, 80, 16, 16)
+
 [sub_resource type="AtlasTexture" id="AtlasTexture_modgi"]
 atlas = ExtResource("2_missile")
 region = Rect2(0, 48, 16, 16)
@@ -13,6 +33,22 @@ region = Rect2(0, 48, 16, 16)
 [sub_resource type="AtlasTexture" id="AtlasTexture_gjktm"]
 atlas = ExtResource("2_missile")
 region = Rect2(16, 48, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ws7dx"]
+atlas = ExtResource("2_missile")
+region = Rect2(0, 64, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_yr42k"]
+atlas = ExtResource("2_missile")
+region = Rect2(16, 64, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_r2t1j"]
+atlas = ExtResource("2_missile")
+region = Rect2(32, 64, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ey8tp"]
+atlas = ExtResource("2_missile")
+region = Rect2(48, 64, 16, 16)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_oibxu"]
 atlas = ExtResource("2_missile")
@@ -22,14 +58,51 @@ region = Rect2(16, 16, 16, 16)
 animations = [{
 "frames": [{
 "duration": 1.0,
+"texture": SubResource("AtlasTexture_b2flv")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_u7var")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_c0kl8")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_kyq2p")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_tv2x6")
+}],
+"loop": 0,
+"name": &"explode",
+"speed": 4.0
+}, {
+"frames": [{
+"duration": 1.0,
 "texture": SubResource("AtlasTexture_modgi")
 }, {
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_gjktm")
 }],
 "loop": 0,
-"name": &"explode",
+"name": &"explode_v1",
 "speed": 3.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ws7dx")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_yr42k")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_r2t1j")
+}, {
+"duration": 0.5,
+"texture": SubResource("AtlasTexture_ey8tp")
+}],
+"loop": 0,
+"name": &"explode_v3",
+"speed": 6.0
 }, {
 "frames": [{
 "duration": 1.0,
@@ -54,9 +127,9 @@ shape = SubResource("RectangleShape2D_body")
 position = Vector2(0, -2)
 sprite_frames = SubResource("SpriteFrames_missile")
 animation = &"explode"
-frame = 1
+frame = 4
 frame_progress = 1.0
-speed_scale = 2.0
+speed_scale = 2.5
 
 [node name="Hitbox" type="Area2D" parent="." unique_id=1487285328]
 collision_layer = 8
