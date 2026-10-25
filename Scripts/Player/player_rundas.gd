@@ -44,6 +44,8 @@ var is_jump_rising: bool = false
 # Reference to the AnimatedSprite2D node
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
 @onready var muzzle = $Muzzle
+# Holds the fixed per-aim Marker2D positions (authored for the right-facing pose)
+@onready var muzzle_markers: Node2D = $Muzzles
 @onready var charge_effect: Sprite2D = $Muzzle/ChargeEffect
 
 var shoot_timer: float = 0.0
@@ -246,11 +248,12 @@ func _fire_charge_beam() -> void:
 
 
 func _spawn_projectile(scene: PackedScene) -> void:
-	var final_dir: Vector2 = get_aim_direction()
+	var shot := _get_shot_origin_and_dir()
+	var final_dir: Vector2 = shot[1]
 	var projectile = scene.instantiate()
 	projectile.start(final_dir, self)
 	# spawn slightly ahead so it doesn't immediately collide with player
-	projectile.global_position = muzzle.global_position + final_dir * 6
+	projectile.global_position = shot[0]
 	get_parent().add_child(projectile)
 
 
@@ -332,11 +335,12 @@ func _try_fire_missile() -> void:
 
 	missile_timer = MISSILE_COOLDOWN
 	missile_ammo -= 1
-	var final_dir: Vector2 = get_aim_direction()
+	var shot := _get_shot_origin_and_dir()
+	var final_dir: Vector2 = shot[1]
 	var missile = missile_scene.instantiate()
 	missile.start(final_dir, self)
 	# spawn slightly ahead so it doesn't immediately collide with player
-	missile.global_position = muzzle.global_position + final_dir * 6
+	missile.global_position = shot[0]
 	get_parent().add_child(missile)
 
 	if debug_enabled:
@@ -454,18 +458,51 @@ func handle_horizontal_movement():
 
 
 func _update_muzzle_position() -> void:
-	var offset_x: float = abs(muzzle.position.x)
-	muzzle.position.x = -offset_x if sprite.flip_h else offset_x
-	# adjust muzzle rotation to match facing and aim
 	handle_aim()
 
 
 func handle_aim() -> void:
-	# Update aim angle and muzzle rotation from the resolved aim direction
+	# Update aim angle and muzzle from the resolved aim direction
 	_update_aim_press_order()
-	var dir := get_aim_direction()
+	_apply_aim_to_muzzle(get_aim_direction())
+
+
+func _apply_aim_to_muzzle(dir: Vector2) -> void:
 	aim_angle = dir.angle()
 	muzzle.rotation = aim_angle
+	var marker: Marker2D = _get_muzzle_marker(dir)
+	if marker == null:
+		return
+	# Markers are authored for the right-facing pose; the player node itself never flips
+	# (only the sprite does), so mirror x here when facing left.
+	var pos: Vector2 = marker.position
+	if sprite.flip_h:
+		pos.x = -pos.x
+	muzzle.position = pos
+
+
+# Maps the resolved aim direction to its marker. Straight up/down have x == 0,
+# horizontal has y == 0, anything else is a diagonal.
+func _get_muzzle_marker(dir: Vector2) -> Marker2D:
+	var key: StringName
+	if is_zero_approx(dir.x):
+		key = &"MuzzleUp" if dir.y < 0.0 else &"MuzzleDown"
+	elif is_zero_approx(dir.y):
+		key = &"MuzzleHorizontal"
+	else:
+		key = &"MuzzleDiagonalUp" if dir.y < 0.0 else &"MuzzleDiagonalDown"
+	var marker := muzzle_markers.get_node_or_null(NodePath(key)) as Marker2D
+	if marker == null:
+		push_error("[Player] Missing muzzle marker '%s' under Muzzles" % key)
+	return marker
+
+
+# Returns the spawn origin and direction for a shot, with the muzzle synced to the
+# current aim and facing (facing may have changed after handle_aim ran this frame).
+func _get_shot_origin_and_dir() -> Array:
+	var dir: Vector2 = get_aim_direction()
+	_apply_aim_to_muzzle(dir)
+	return [muzzle.global_position + dir * 6, dir]
 
 
 # ==================================================

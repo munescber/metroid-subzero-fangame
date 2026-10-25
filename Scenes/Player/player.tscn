@@ -160,9 +160,27 @@ visible = false
 z_index = 1
 texture = SubResource("AtlasTexture_charge")
 
+[node name="Muzzles" type="Node2D" parent="." unique_id=727901345]
+
+[node name="MuzzleHorizontal" type="Marker2D" parent="Muzzles" unique_id=1756549789]
+position = Vector2(13, 0)
+
+[node name="MuzzleUp" type="Marker2D" parent="Muzzles" unique_id=326702361]
+position = Vector2(-1, -17)
+
+[node name="MuzzleDown" type="Marker2D" parent="Muzzles" unique_id=972027464]
+position = Vector2(-1, 18)
+
+[node name="MuzzleDiagonalUp" type="Marker2D" parent="Muzzles" unique_id=1770651527]
+position = Vector2(11, -9)
+
+[node name="MuzzleDiagonalDown" type="Marker2D" parent="Muzzles" unique_id=1148356353]
+position = Vector2(11, 9)
+
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=181990051]
 sprite_frames = SubResource("SpriteFrames_6ce0r")
-animation = &"dash"
+animation = &"idle"
+autoplay = "idle"
 
 [node name="Hurtbox" type="Area2D" parent="." unique_id=981234567]
 collision_layer = 16
