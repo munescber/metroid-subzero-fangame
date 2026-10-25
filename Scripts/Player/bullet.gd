@@ -4,8 +4,8 @@ class_name Bullet
 
 # Bullet / beam settings. Exported so derived projectiles (e.g. ChargeBeam)
 # can tune them from their own scene.
-@export var speed: float = 120.0
-@export var lifetime: float = 2.0
+@export var speed: float = 140.0
+@export var lifetime: float = 3.0
 @export var damage: int = 1
 @export var one_shot: bool = true
 # Visual-only effect spawned on impact. impact_animation picks which animation of

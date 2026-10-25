@@ -26,6 +26,10 @@ region = Rect2(48, 80, 16, 16)
 atlas = ExtResource("2_missile")
 region = Rect2(64, 80, 16, 16)
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_x1141"]
+atlas = ExtResource("2_missile")
+region = Rect2(64, 64, 16, 16)
+
 [sub_resource type="AtlasTexture" id="AtlasTexture_modgi"]
 atlas = ExtResource("2_missile")
 region = Rect2(0, 48, 16, 16)
@@ -71,6 +75,9 @@ animations = [{
 }, {
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_tv2x6")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_x1141")
 }],
 "loop": 0,
 "name": &"explode",
@@ -114,7 +121,7 @@ animations = [{
 }]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_explosion"]
-size = Vector2(16, 16)
+size = Vector2(17, 17)
 
 [node name="Missile" type="CharacterBody2D" unique_id=456701534]
 collision_layer = 8
@@ -127,7 +134,7 @@ shape = SubResource("RectangleShape2D_body")
 position = Vector2(0, -2)
 sprite_frames = SubResource("SpriteFrames_missile")
 animation = &"explode"
-frame = 4
+frame = 5
 frame_progress = 1.0
 speed_scale = 2.5
 

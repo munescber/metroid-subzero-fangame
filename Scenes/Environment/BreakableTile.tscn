@@ -1,25 +1,74 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://bp1jydra2bt8k"]
 
-[ext_resource type="Script" path="res://Scripts/Environment/breakable_tile.gd" id="1_tile"]
+[ext_resource type="Script" uid="uid://btjhmuerf0eh1" path="res://Scripts/Environment/breakable_tile.gd" id="1_tile"]
 [ext_resource type="Texture2D" uid="uid://bmg2gysobj2qf" path="res://Tilesets/wrecked_ship.png" id="2_tileset"]
+[ext_resource type="Texture2D" uid="uid://cstj4its3lgfo" path="res://Spritesheets/breakable_tiles_animation.png" id="3_60ir8"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_block"]
 resource_local_to_scene = true
 atlas = ExtResource("2_tileset")
 region = Rect2(96, 48, 16, 16)
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_njx1t"]
+atlas = ExtResource("3_60ir8")
+region = Rect2(0, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_dk717"]
+atlas = ExtResource("3_60ir8")
+region = Rect2(32, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_1pf40"]
+atlas = ExtResource("3_60ir8")
+region = Rect2(64, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_60ir8"]
+atlas = ExtResource("3_60ir8")
+region = Rect2(96, 0, 32, 32)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_tile"]
+resource_local_to_scene = true
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_njx1t")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_dk717")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_1pf40")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_60ir8")
+}],
+"loop": 0,
+"name": &"breaking",
+"speed": 12.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_block")
+}],
+"loop": 1,
+"name": &"idle",
+"speed": 5.0
+}]
+
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_block"]
 resource_local_to_scene = true
 size = Vector2(16, 16)
 
-[node name="BreakableTile" type="StaticBody2D"]
-collision_layer = 1
+[node name="BreakableTile" type="StaticBody2D" unique_id=767588914]
 collision_mask = 0
 script = ExtResource("1_tile")
 texture = SubResource("AtlasTexture_block")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
-texture = SubResource("AtlasTexture_block")
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1019208631]
+sprite_frames = SubResource("SpriteFrames_tile")
+animation = &"breaking"
+autoplay = "idle"
+frame = 3
+frame_progress = 1.0
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1074346811]
 shape = SubResource("RectangleShape2D_block")
