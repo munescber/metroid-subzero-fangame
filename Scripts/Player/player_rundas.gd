@@ -4,14 +4,14 @@ extends CharacterBody2D
 # Player Movement Settings
 # ==================================================
 
-const MOVE_SPEED := 75.0
+const MOVE_SPEED := 80.0
 const SHOOT_COOLDOWN := 0.20
 const MISSILE_COOLDOWN := 0.6
 const BULLET_OFFSET := Vector2(12, 0)
 const AIM_UP_ANGLE := PI/4
 const AIM_DOWN_ANGLE := -PI/4
 const DASH_DISTANCE := 48.0
-const DASH_SPEED := 330.0
+const DASH_SPEED := 280.0
 const DASH_COOLDOWN := 1.0
 const DASH_WINDUP := 0.06  # brief mid-air hang before the burst
 const DASH_AFTERIMAGE_INTERVAL := 0.04
@@ -44,6 +44,8 @@ var is_jump_rising: bool = false
 # Reference to the AnimatedSprite2D node
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
 @onready var muzzle = $Muzzle
+# Holds the fixed per-aim Marker2D positions (authored for the right-facing pose)
+@onready var muzzle_markers: Node2D = $Muzzles
 @onready var charge_effect: Sprite2D = $Muzzle/ChargeEffect
 
 var shoot_timer: float = 0.0
@@ -59,6 +61,9 @@ var is_charging: bool = false
 var is_charged: bool = false
 var charge_time: float = 0.0
 var aim_angle: float = 0.0
+# Held aim actions, oldest press first (see get_aim_direction for the priority rule)
+const AIM_ACTIONS: Array[String] = ["up", "down", "aim_diag_up", "aim_diag_down"]
+var _aim_press_order: Array[String] = []
 var dash_cooldown_timer: float = 0.0
 var dash_remaining_distance: float = 0.0
 var dash_direction: float = 1.0
@@ -74,8 +79,15 @@ var health_comp: HealthComponent = null
 @export var max_health: int = 100
 @export var debug_enabled: bool = false
 
-# Missile ammo, exported so it can be hand-set for testing
-@export var missile_ammo: int = 100
+# Missiles: unlock state and ammo are independent (unlocked with 0 ammo can't fire).
+## Whether missile shooting is unlocked at start (set true to test without a pickup).
+@export var missiles_unlocked: bool = false
+## Current missile ammo. Starting value is editable for testing; never negative.
+@export_range(0, 9999, 1, "or_greater") var missile_ammo: int = 0:
+	set(value):
+		missile_ammo = maxi(value, 0)
+## Ammo granted by each missile pickup.
+@export_range(1, 999, 1, "or_greater") var missile_pickup_amount: int = 5
 
 # Damage / invulnerability
 @export var invulnerability_time: float = 0.8
@@ -91,23 +103,63 @@ var _original_modulate: Color = Color(1,1,1,1)
 @export var knockback_lock_duration: float = 0.2  # briefly ignores movement input so the knockback is actually felt
 var knockback_lock_timer: float = 0.0
 
+# Hurt animation: while hurt_timer > 0 the "hurt" animation overrides every other pose.
+# It is skipped if the SpriteFrames has no animation named "hurt".
+@export var hurt_animation_duration: float = 0.3
+var hurt_timer: float = 0.0
+
 # Player damage tuning for debugging
 @export var player_damage_taken: int = 1
 
 
 
+# Hold-to-aim. Single source of truth for where bullets, charge beams and missiles go.
+#   no key        -> horizontal (facing side)
+#   up (W)        -> straight up, any state
+#   down (S)      -> airborne only: straight down (ignored on the ground)
+#   aim_diag_up   (Q) -> diagonal up, any state
+#   aim_diag_down (E) -> diagonal down, ignored while grounded and standing still
+# Priority rule: the most recently pressed key that is valid in the current state wins.
+# When it is released (or becomes invalid, e.g. S on landing) the next most recent held
+# valid key is used, and with none left the aim returns to horizontal.
+# Diagonals and horizontal follow the facing side; straight up/down do not.
 func get_aim_direction() -> Vector2:
 	# horizontal is -1 when facing left, +1 when facing right
 	var horizontal: float = -1.0 if sprite.flip_h else 1.0
-	var vertical: float = 0.0
+	var grounded: bool = is_on_floor()
 
-	if Input.is_action_pressed("up"):
-		vertical = -1.0
-	elif Input.is_action_pressed("down") and not is_on_floor():
-		vertical = 1.0
+	for i in range(_aim_press_order.size() - 1, -1, -1):
+		var action: String = _aim_press_order[i]
+		if action == "up":
+			return Vector2.UP
+		elif action == "down" and not grounded:
+			return Vector2.DOWN
+		elif action == "aim_diag_up":
+			return Vector2(horizontal, -1.0).normalized()
+		elif action == "aim_diag_down" and not (grounded and not _is_moving_horizontally()):
+			return Vector2(horizontal, 1.0).normalized()
 
-	var dir := Vector2(horizontal, vertical)
-	return dir.normalized()
+	return Vector2(horizontal, 0.0)
+
+
+# True while the player is running (move key held) or still carrying horizontal speed,
+# e.g. from knockback or a dash. Same "moving" notion as the walk animation.
+func _is_moving_horizontally() -> bool:
+	return abs(velocity.x) > 0.0 or Input.get_axis("left", "right") != 0.0
+
+
+# Keeps _aim_press_order sorted by press time (oldest first) for the held aim keys.
+func _update_aim_press_order() -> void:
+	for action in AIM_ACTIONS:
+		if Input.is_action_just_pressed(action):
+			_aim_press_order.erase(action)
+			_aim_press_order.append(action)
+		elif Input.is_action_pressed(action):
+			# held but never seen as pressed (e.g. pressed while physics was paused)
+			if not _aim_press_order.has(action):
+				_aim_press_order.append(action)
+		else:
+			_aim_press_order.erase(action)
 
 
 # ==================================================
@@ -146,6 +198,7 @@ func _physics_process(delta):
 	elif not is_dashing:
 		handle_horizontal_movement()
 
+	hurt_timer = maxf(hurt_timer - delta, 0.0)
 	update_animation()
 
 	# invulnerability handling (blink + timer)
@@ -195,11 +248,12 @@ func _fire_charge_beam() -> void:
 
 
 func _spawn_projectile(scene: PackedScene) -> void:
-	var final_dir: Vector2 = get_aim_direction()
+	var shot := _get_shot_origin_and_dir()
+	var final_dir: Vector2 = shot[1]
 	var projectile = scene.instantiate()
 	projectile.start(final_dir, self)
 	# spawn slightly ahead so it doesn't immediately collide with player
-	projectile.global_position = muzzle.global_position + final_dir * 6
+	projectile.global_position = shot[0]
 	get_parent().add_child(projectile)
 
 
@@ -257,7 +311,20 @@ func _update_charge_visual() -> void:
 		charge_effect.modulate = Color(1, 1, 1, lerpf(0.3, 0.8, ratio) * (0.8 + 0.2 * pulse))
 
 
+## Called by MissilePickup. There is no ammo cap in this project, so the
+## "y" in the log is shown as ∞ rather than an invented maximum.
+func collect_missiles() -> void:
+	if not missiles_unlocked:
+		missiles_unlocked = true
+		print("Missile enabled")
+	missile_ammo += missile_pickup_amount
+	print("Missiles obtained. Count %d/∞" % missile_ammo)
+
+
 func _try_fire_missile() -> void:
+	if not missiles_unlocked:
+		return
+
 	if missile_timer > 0.0:
 		return
 
@@ -268,11 +335,12 @@ func _try_fire_missile() -> void:
 
 	missile_timer = MISSILE_COOLDOWN
 	missile_ammo -= 1
-	var final_dir: Vector2 = get_aim_direction()
+	var shot := _get_shot_origin_and_dir()
+	var final_dir: Vector2 = shot[1]
 	var missile = missile_scene.instantiate()
 	missile.start(final_dir, self)
 	# spawn slightly ahead so it doesn't immediately collide with player
-	missile.global_position = muzzle.global_position + final_dir * 6
+	missile.global_position = shot[0]
 	get_parent().add_child(missile)
 
 	if debug_enabled:
@@ -390,19 +458,51 @@ func handle_horizontal_movement():
 
 
 func _update_muzzle_position() -> void:
-	var offset_x: float = abs(muzzle.position.x)
-	muzzle.position.x = -offset_x if sprite.flip_h else offset_x
-	# adjust muzzle rotation to match facing and aim
-	var dir := get_aim_direction()
-	aim_angle = dir.angle()
-	muzzle.rotation = aim_angle
+	handle_aim()
 
 
 func handle_aim() -> void:
-	# Update aim angle and muzzle rotation from vector direction
-	var dir := get_aim_direction()
+	# Update aim angle and muzzle from the resolved aim direction
+	_update_aim_press_order()
+	_apply_aim_to_muzzle(get_aim_direction())
+
+
+func _apply_aim_to_muzzle(dir: Vector2) -> void:
 	aim_angle = dir.angle()
 	muzzle.rotation = aim_angle
+	var marker: Marker2D = _get_muzzle_marker(dir)
+	if marker == null:
+		return
+	# Markers are authored for the right-facing pose; the player node itself never flips
+	# (only the sprite does), so mirror x here when facing left.
+	var pos: Vector2 = marker.position
+	if sprite.flip_h:
+		pos.x = -pos.x
+	muzzle.position = pos
+
+
+# Maps the resolved aim direction to its marker. Straight up/down have x == 0,
+# horizontal has y == 0, anything else is a diagonal.
+func _get_muzzle_marker(dir: Vector2) -> Marker2D:
+	var key: StringName
+	if is_zero_approx(dir.x):
+		key = &"MuzzleUp" if dir.y < 0.0 else &"MuzzleDown"
+	elif is_zero_approx(dir.y):
+		key = &"MuzzleHorizontal"
+	else:
+		key = &"MuzzleDiagonalUp" if dir.y < 0.0 else &"MuzzleDiagonalDown"
+	var marker := muzzle_markers.get_node_or_null(NodePath(key)) as Marker2D
+	if marker == null:
+		push_error("[Player] Missing muzzle marker '%s' under Muzzles" % key)
+	return marker
+
+
+# Returns the spawn origin and direction for a shot, with the muzzle synced to the
+# current aim and facing (facing may have changed after handle_aim ran this frame).
+func _get_shot_origin_and_dir() -> Array:
+	var dir: Vector2 = get_aim_direction()
+	_apply_aim_to_muzzle(dir)
+	return [muzzle.global_position + dir * 6, dir]
 
 
 # ==================================================
@@ -411,7 +511,13 @@ func handle_aim() -> void:
 
 func update_animation():
 
-	if !is_on_floor():
+	if hurt_timer > 0.0 and sprite.sprite_frames.has_animation("hurt"):
+		sprite.play("hurt")
+
+	elif is_dashing and sprite.sprite_frames.has_animation("dash"):
+		sprite.play("dash")
+
+	elif !is_on_floor():
 		# the air dash zeroes velocity.y, so keep the current pose instead of flipping to "fall"
 		if not is_dashing:
 			sprite.play("jump" if velocity.y < 0.0 else "fall")
@@ -452,6 +558,12 @@ func take_damage(amount: int, source = null) -> void:
 	invulnerable = true
 	invul_timer = invulnerability_time
 	invul_blink_timer = invul_blink_interval
+
+	# restart the hurt pose from frame 0 even if it was already playing
+	hurt_timer = hurt_animation_duration
+	if sprite.sprite_frames.has_animation("hurt"):
+		sprite.stop()
+		sprite.play("hurt")
 
 	if health_comp:
 		health_comp.take_damage(amount, source)

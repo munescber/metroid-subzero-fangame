@@ -1,0 +1,24 @@
+[gd_scene format=3 uid="uid://ce483xgt42bn4"]
+
+[ext_resource type="Script" uid="uid://d0gvbh6qmw3y5" path="res://Scripts/Environment/missile_pickup.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://b3gikucofefs3" path="res://Tilesets/miscellaneous.png" id="2_tex"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_missile"]
+atlas = ExtResource("2_tex")
+region = Rect2(0, 48, 16, 16)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_missile"]
+size = Vector2(17.5, 16.125)
+
+[node name="MissilePickup" type="Area2D" unique_id=1865774495]
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("1_script")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=590928225]
+texture = SubResource("AtlasTexture_missile")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=815702214]
+visible = false
+position = Vector2(0, 0.0625)
+shape = SubResource("RectangleShape2D_missile")

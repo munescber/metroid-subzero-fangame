@@ -17,6 +17,9 @@ class_name BreakableTile
 
 signal destroyed
 
+const ANIM_IDLE := &"idle"
+const ANIM_BREAKING := &"breaking"  # must not loop, or animation_finished never fires
+
 @export var max_health: int = 1
 @export var texture: Texture2D:
 	set(value):
@@ -52,10 +55,16 @@ func _ready() -> void:
 func _apply_visuals() -> void:
 	if not is_node_ready():
 		return
-	var sprite := get_node_or_null("Sprite2D") as Sprite2D
-	if sprite:
-		sprite.texture = texture
-		sprite.position = sprite_offset
+	var sprite := get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+	if sprite == null:
+		return
+	sprite.position = sprite_offset
+	# the per-instance `texture` overrides the first idle frame
+	var frames := sprite.sprite_frames
+	if texture and frames and frames.has_animation(ANIM_IDLE) \
+			and frames.get_frame_count(ANIM_IDLE) > 0 \
+			and frames.get_frame_texture(ANIM_IDLE, 0) != texture:
+		frames.set_frame(ANIM_IDLE, 0, texture)
 
 func _apply_collision() -> void:
 	if not is_node_ready():
@@ -85,7 +94,13 @@ func _on_died() -> void:
 	for child in get_children():
 		if child is CollisionShape2D:
 			child.set_deferred("disabled", true)
-		elif child is CanvasItem:
-			child.hide()
 	destroyed.emit()
-	queue_free()
+
+	# the tile stays visible until "breaking" finishes; no frames means nothing to wait for
+	var sprite := get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
+	var frames := sprite.sprite_frames if sprite else null
+	if frames and frames.has_animation(ANIM_BREAKING) and frames.get_frame_count(ANIM_BREAKING) > 0:
+		sprite.animation_finished.connect(queue_free, CONNECT_ONE_SHOT)
+		sprite.play(ANIM_BREAKING)
+	else:
+		queue_free()
