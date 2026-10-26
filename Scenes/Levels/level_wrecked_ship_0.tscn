@@ -13,6 +13,9 @@
 [ext_resource type="PackedScene" uid="uid://dt3nv6spgohf5" path="res://Scenes/Environment/room_gate.tscn" id="10_room_gate"]
 [ext_resource type="PackedScene" path="res://Scenes/Environment/SpikeHazard.tscn" id="12_d533q"]
 [ext_resource type="PackedScene" uid="uid://bp1jydra2bt8k" path="res://Scenes/Environment/BreakableTile.tscn" id="13_esjyw"]
+[ext_resource type="PackedScene" path="res://Scenes/Effects/crt_filter.tscn" id="crt_filter"]
+[ext_resource type="Script" path="res://Scripts/Levels/room_camera.gd" id="room_camera_script"]
+[ext_resource type="Script" path="res://Scripts/Levels/room_region.gd" id="room_region_script"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_bg"]
 texture = ExtResource("1_7sarq")
@@ -936,11 +939,6 @@ texture = ExtResource("1_7sarq")
 sources/0 = SubResource("TileSetAtlasSource_fg")
 sources/2 = SubResource("TileSetAtlasSource_ee3wp")
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_esjyw"]
-resource_local_to_scene = true
-atlas = ExtResource("1_7sarq")
-region = Rect2(96, 48, 16, 16)
-
 [sub_resource type="AtlasTexture" id="AtlasTexture_u5nmf"]
 resource_local_to_scene = true
 atlas = ExtResource("1_7sarq")
@@ -951,7 +949,13 @@ resource_local_to_scene = true
 atlas = ExtResource("1_7sarq")
 region = Rect2(96, 48, 16, 16)
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_q4w0q"]
+resource_local_to_scene = true
+atlas = ExtResource("1_7sarq")
+region = Rect2(96, 48, 16, 16)
+
 [node name="level_wrecked_ship_0" type="Node2D" unique_id=1777562672]
+position = Vector2(41, 242)
 
 [node name="BackgroundTileMapLayer" type="TileMapLayer" parent="." unique_id=1933712802]
 z_index = -2
@@ -1076,12 +1080,25 @@ position = Vector2(1496, -71)
 
 [node name="BreakableTile" parent="BreakableTiles" unique_id=430667263 instance=ExtResource("13_esjyw")]
 position = Vector2(1000, -135)
-texture = SubResource("AtlasTexture_esjyw")
+texture = SubResource("AtlasTexture_u5nmf")
 
 [node name="BreakableTile2" parent="BreakableTiles" unique_id=1992787765 instance=ExtResource("13_esjyw")]
 position = Vector2(984, -135)
-texture = SubResource("AtlasTexture_u5nmf")
+texture = SubResource("AtlasTexture_wr0ru")
 
 [node name="BreakableTile3" parent="BreakableTiles" unique_id=667271119 instance=ExtResource("13_esjyw")]
 position = Vector2(968, -135)
-texture = SubResource("AtlasTexture_wr0ru")
+texture = SubResource("AtlasTexture_q4w0q")
+
+[node name="CRTFilter" parent="." unique_id=1082100216 instance=ExtResource("crt_filter")]
+scale = Vector2(2, 2)
+transform = Transform2D(2, 0, 0, 2, 0, 0)
+
+[node name="RoomCamera" type="Camera2D" parent="."]
+position = Vector2(640, 9)
+script = ExtResource("room_camera_script")
+
+[node name="Room_Start" type="Node2D" parent="."]
+position = Vector2(512, -111)
+script = ExtResource("room_region_script")
+

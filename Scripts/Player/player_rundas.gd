@@ -15,6 +15,8 @@ const DASH_SPEED := 280.0
 const DASH_COOLDOWN := 1.0
 const DASH_WINDUP := 0.06  # brief mid-air hang before the burst
 const DASH_AFTERIMAGE_INTERVAL := 0.04
+const DOWN_DASH_DISTANCE := 80.0  # path length along the 45° diagonal
+const DOWN_DASH_SPEED := 360.0
 const CHARGE_EFFECT_MIN_SCALE := 0.4
 const CHARGE_EFFECT_MAX_SCALE := 1.0
 
@@ -68,6 +70,10 @@ var dash_cooldown_timer: float = 0.0
 var dash_remaining_distance: float = 0.0
 var dash_direction: float = 1.0
 var is_dashing: bool = false
+var dash_is_downward: bool = false
+# per airborne sequence; both reset on landing
+var air_dash_used: bool = false
+var down_dash_used: bool = false
 var dash_windup_timer: float = 0.0
 var dash_afterimage_timer: float = 0.0
 var dash_afterimage_scene: PackedScene = preload("res://Scenes/Player/dash_afterimage.tscn")
@@ -218,6 +224,9 @@ func _physics_process(delta):
 	# the wall check is skipped during the windup, since no dash movement has happened yet
 	if is_dashing and dash_windup_timer <= 0.0 and is_on_wall():
 		_end_dash()
+	# the downward dash also stops on the floor or a ceiling so it can't slide along them
+	elif is_dashing and dash_is_downward and (is_on_floor() or is_on_ceiling()):
+		_end_dash()
 
 
 func handle_shoot(delta):
@@ -351,21 +360,52 @@ func _try_fire_missile() -> void:
 func handle_dash(delta):
 	dash_cooldown_timer = max(dash_cooldown_timer - delta, 0.0)
 
+	# landing recharges the per-jump dashes; the cooldown timers keep running independently
+	if is_on_floor():
+		air_dash_used = false
+		down_dash_used = false
+	elif is_dashing:
+		# a ground dash that carries the player off a ledge counts as the air dash
+		air_dash_used = true
+
 	if is_dashing:
 		_update_dash(delta)
 		return
 
-	if Input.is_action_just_pressed("dash") and dash_cooldown_timer <= 0.0 and knockback_lock_timer <= 0.0:
+	if not Input.is_action_just_pressed("dash") or knockback_lock_timer > 0.0:
+		return
+
+	if is_on_floor():
+		if dash_cooldown_timer <= 0.0:
+			_start_dash()
+	elif Input.is_action_pressed("down"):
+		# in the air, S + K only ever means the downward dash, never the horizontal one
+		if _can_start_down_dash():
+			_start_dash(true)
+	elif dash_cooldown_timer <= 0.0 and not air_dash_used:
 		_start_dash()
 
 
-func _start_dash() -> void:
+# Independent of the horizontal dash: once per airborne sequence, no cooldown.
+func _can_start_down_dash() -> bool:
+	return not down_dash_used
+
+
+func _start_dash(downward: bool = false) -> void:
 	is_dashing = true
-	dash_cooldown_timer = DASH_COOLDOWN
-	dash_remaining_distance = DASH_DISTANCE
-	dash_windup_timer = DASH_WINDUP
+	dash_is_downward = downward
 	dash_afterimage_timer = 0.0
 	dash_direction = -1.0 if sprite.flip_h else 1.0
+	if downward:
+		down_dash_used = true
+		dash_remaining_distance = DOWN_DASH_DISTANCE
+		dash_windup_timer = 0.0
+	else:
+		dash_cooldown_timer = DASH_COOLDOWN
+		dash_remaining_distance = DASH_DISTANCE
+		dash_windup_timer = DASH_WINDUP
+		if not is_on_floor():
+			air_dash_used = true
 	# the dash replaces any jump/fall momentum instead of inheriting it
 	velocity = Vector2.ZERO
 	is_jump_rising = false
@@ -373,15 +413,20 @@ func _start_dash() -> void:
 
 func _update_dash(delta: float) -> void:
 	# movement itself is done by the single move_and_slide() in _physics_process
-	velocity.y = 0.0
+	if not dash_is_downward:
+		velocity.y = 0.0
 
 	if dash_windup_timer > 0.0:
 		dash_windup_timer -= delta
 		velocity.x = 0.0
 		return
 
-	velocity.x = dash_direction * DASH_SPEED
-	dash_remaining_distance -= DASH_SPEED * delta
+	if dash_is_downward:
+		velocity = Vector2(dash_direction, 1.0).normalized() * DOWN_DASH_SPEED
+		dash_remaining_distance -= DOWN_DASH_SPEED * delta
+	else:
+		velocity.x = dash_direction * DASH_SPEED
+		dash_remaining_distance -= DASH_SPEED * delta
 
 	dash_afterimage_timer -= delta
 	if dash_afterimage_timer <= 0.0:
@@ -394,6 +439,7 @@ func _update_dash(delta: float) -> void:
 
 func _end_dash() -> void:
 	is_dashing = false
+	dash_is_downward = false
 	dash_windup_timer = 0.0
 	# no leftover momentum: gravity takes over from zero if airborne
 	velocity = Vector2.ZERO
@@ -514,19 +560,53 @@ func update_animation():
 	if hurt_timer > 0.0 and sprite.sprite_frames.has_animation("hurt"):
 		sprite.play("hurt")
 
+	elif is_dashing and dash_is_downward and sprite.sprite_frames.has_animation("dash_downward"):
+		sprite.play("dash_downward")
+
 	elif is_dashing and sprite.sprite_frames.has_animation("dash"):
 		sprite.play("dash")
 
 	elif !is_on_floor():
 		# the air dash zeroes velocity.y, so keep the current pose instead of flipping to "fall"
 		if not is_dashing:
-			sprite.play("jump" if velocity.y < 0.0 else "fall")
+			if _is_aiming_straight_up() and _has_anim("jump_aim_up"):
+				_play_anim("jump_aim_up")
+			else:
+				sprite.play("jump" if velocity.y < 0.0 else "fall")
+
+	elif _is_aiming_straight_up() and abs(velocity.x) > 0 and _has_anim("walk_aim_up"):
+		_play_anim("walk_aim_up")
+
+	elif _is_aiming_straight_up() and _has_anim("idle_aim_up"):
+		_play_anim("idle_aim_up")
 
 	elif abs(velocity.x) > 0:
 		sprite.play("walk")
 
 	else:
 		sprite.play("idle")
+
+
+# Straight-up aim comes from the centralized aim resolver (W held and winning priority).
+func _is_aiming_straight_up() -> bool:
+	return get_aim_direction() == Vector2.UP
+
+
+var _warned_missing_anims: Dictionary = {}
+
+# True if the animation exists; warns once per missing name instead of every frame.
+func _has_anim(anim_name: String) -> bool:
+	if sprite.sprite_frames.has_animation(anim_name):
+		return true
+	if not _warned_missing_anims.has(anim_name):
+		_warned_missing_anims[anim_name] = true
+		push_warning("[Player] Missing animation '%s' in SpriteFrames; falling back" % anim_name)
+	return false
+
+
+func _play_anim(anim_name: String) -> void:
+	if sprite.animation != anim_name or not sprite.is_playing():
+		sprite.play(anim_name)
 
 
 ### --- Phase 1: Damage shim and handlers ---

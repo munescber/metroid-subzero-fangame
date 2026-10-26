@@ -1,0 +1,24 @@
+[gd_scene format=3 uid="uid://b37x5yfk0m4py"]
+
+[ext_resource type="Shader" uid="uid://cufeefnnvfv3l" path="res://Shaders/crt_filter.gdshader" id="1_crt"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_crt"]
+shader = ExtResource("1_crt")
+shader_parameter/effect_strength = 1.0
+shader_parameter/scanline_strength = 0.50000002375
+shader_parameter/scanline_density = 400.0
+shader_parameter/glow_intensity = 0.150000007125
+shader_parameter/glow_radius = 1.50000002375
+shader_parameter/glow_threshold = 0.9500000427959301
+
+[node name="CRTFilter" type="CanvasLayer" unique_id=944962451]
+layer = 100
+
+[node name="Overlay" type="ColorRect" parent="." unique_id=147253751]
+material = SubResource("ShaderMaterial_crt")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
