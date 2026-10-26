@@ -13,6 +13,7 @@ Defines one room as a block of `screens` standard screen cells (256x240 each). `
 
 | Property | Default | Meaning |
 |---|---|---|
+| `camera_mode` | `FIXED_SCREEN` | `FIXED_SCREEN`: one screen at a time with slides between screens. `SMOOTH_FOLLOW`: camera follows the player inside the region. Never inferred from size |
 | `screens` | `(1,1)` | Room size in screens (x = columns, y = rows); minimum 1x1 |
 | `connects_to` | `[]` | Paths (relative to this node) to other regions this one connects to |
 
@@ -36,6 +37,7 @@ If the marker lies inside the destination screen, the player is placed there. Ot
 ## Hooks and helpers
 
 - `allows_exit(cell, dir)` returns `true` by default. It is a hook for future locked doors and one-way exits; override or extend it to close an exit.
+- `get_world_rect()` returns the region's world-space rectangle.
 - `is_connected_to(other)` checks `connects_to`.
 - `get_entry_marker(dir)` returns the marker for a movement direction, or null.
 - `standard_screen_size()` reads the viewport size from project settings.

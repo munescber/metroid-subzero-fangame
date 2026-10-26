@@ -14,6 +14,15 @@ class_name RoomRegion
 ## EntryFromTop or EntryFromBottom. A marker inside the destination screen replaces the default
 ## push-in when the player enters through that side.
 
+## Camera modes (chosen per region, never inferred from size):
+## FIXED_SCREEN  - the camera shows one screen at a time and slides whenever the player crosses a
+##                 screen edge (also between the screens of one multi-screen region).
+## SMOOTH_FOLLOW - the camera follows the player inside the region and stops at the region's outer
+##                 edge. Internal screen edges cause no slide; leaving the region still slides.
+enum CameraMode { FIXED_SCREEN, SMOOTH_FOLLOW }
+
+@export var camera_mode: CameraMode = CameraMode.FIXED_SCREEN
+
 ## Size of the room in screens (x = columns, y = rows).
 @export var screens: Vector2i = Vector2i.ONE:
 	set(value):
@@ -33,6 +42,10 @@ static func standard_screen_size() -> Vector2:
 	return Vector2(
 		ProjectSettings.get_setting("display/window/size/viewport_width", 256),
 		ProjectSettings.get_setting("display/window/size/viewport_height", 240))
+
+## The region's area in world space (top-left corner = node position).
+func get_world_rect() -> Rect2:
+	return Rect2(global_position, Vector2(screens) * standard_screen_size())
 
 func is_connected_to(other: RoomRegion) -> bool:
 	for path in connects_to:

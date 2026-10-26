@@ -2,13 +2,15 @@ extends Camera2D
 
 class_name RoomCamera
 
-## Fixed camera that shows exactly one standard screen region (viewport size, 256x240).
-## It never follows the player. Place this node in the editor so that the camera's
-## preview rectangle covers the room's first screen region: the node position is the
-## CENTER of that region. The viewport must be 256x240 (zoom 1).
+## Room camera with two behaviours, chosen per RoomRegion (RoomRegion.camera_mode):
+## - FIXED_SCREEN: shows exactly one standard screen (viewport size, 256x240) and slides one
+##   screen over when the player crosses a screen edge, while the rest of the level is frozen.
+## - SMOOTH_FOLLOW: follows the player inside the region, clamped to the region's outer edge.
+##   Crossing internal screen edges does nothing; leaving the region still uses the slide.
+## Place this node in the editor so that the camera's preview rectangle covers the room's first
+## screen region: the node position is the CENTER of that region. The viewport must be 256x240 (zoom 1).
 ## Rooms are RoomRegion nodes under this camera's parent; they decide which cells exist and connect.
-## When the player leaves the current region the camera slides one screen over while
-## the rest of the level is frozen. See Docs/environment_logic/ROOM_SIZE_STANDARDS.md.
+## See Docs/camera_logic/ and Docs/environment_logic/ROOM_SIZE_STANDARDS.md.
 
 signal transition_started(from_cell: Vector2i, to_cell: Vector2i)
 signal transition_finished(cell: Vector2i)
@@ -22,13 +24,17 @@ signal transition_finished(cell: Vector2i)
 @export_range(0.1, 5.0, 0.05) var transition_duration: float = 1.0
 ## Pixels the player is carried into the new region during the slide (skipped if a wall is in the way).
 @export var entry_push: float = 24.0
+## SMOOTH_FOLLOW only: how quickly the camera catches up with the player (0 = locked to the player).
+@export_range(0.0, 30.0, 0.5) var follow_catch_up_speed: float = 8.0
 @export var debug_enabled: bool = false
 
 var player: CharacterBody2D
 var screen_size: Vector2
 ## Top-left corner of the room, captured from the editor placement.
 var room_origin: Vector2
+## Screen cell the player is in. In SMOOTH_FOLLOW regions it tracks the player across internal edges.
 var current_cell: Vector2i
+var current_region: RoomRegion
 var is_transitioning: bool = false
 
 var _slide_from: Vector2
@@ -53,10 +59,15 @@ func _ready() -> void:
 	make_current()
 	player = get_node_or_null(player_path) as CharacterBody2D
 	_collect_regions()
+	current_region = _cell_regions.get(current_cell)
+	# Run after the player so the followed position is never one frame behind.
+	process_physics_priority = 1
 	if player == null:
 		player = get_tree().get_first_node_in_group("player") as CharacterBody2D
 	if player == null:
 		push_warning("[RoomCamera] No player assigned; screen transitions are disabled.")
+	elif _is_smooth_follow(current_region):
+		global_position = _clamped_follow_position(current_region, player.global_position)
 	if debug_enabled:
 		print("[RoomCamera] origin ", room_origin, " cell ", current_cell, " center ", global_position, " player ", player)
 
@@ -102,9 +113,37 @@ func _refusal_reason(from: Vector2i, dir: Vector2i) -> String:
 		return "%s is not connected to %s" % [src.name, dest.name]
 	return ""
 
-func _physics_process(_delta: float) -> void:
+func _is_smooth_follow(region: RoomRegion) -> bool:
+	return region != null and region.camera_mode == RoomRegion.CameraMode.SMOOTH_FOLLOW
+
+## Camera center that keeps the view inside the region's rectangle while following `target`.
+## An axis where the region is smaller than the view is centered instead.
+func _clamped_follow_position(region: RoomRegion, target: Vector2) -> Vector2:
+	var area := region.get_world_rect()
+	var half_view := screen_size / 2.0
+	var result := target
+	for axis in 2:
+		var lowest := area.position[axis] + half_view[axis]
+		var highest := area.end[axis] - half_view[axis]
+		result[axis] = area.get_center()[axis] if lowest > highest else clampf(target[axis], lowest, highest)
+	return result
+
+## SMOOTH_FOLLOW: moves the camera towards the player and keeps current_cell on the player's cell
+## while the player stays inside the region, so only a real region exit reaches _exit_direction.
+func _follow_player(delta: float) -> void:
+	var player_cell := Vector2i(((player.global_position - room_origin) / screen_size).floor())
+	if _cell_regions.get(player_cell) == current_region:
+		current_cell = player_cell
+	var target := _clamped_follow_position(current_region, player.global_position)
+	if follow_catch_up_speed > 0.0:
+		target = global_position.lerp(target, 1.0 - exp(-follow_catch_up_speed * delta))
+	global_position = target.round()
+
+func _physics_process(delta: float) -> void:
 	if is_transitioning or player == null:
 		return
+	if _is_smooth_follow(current_region):
+		_follow_player(delta)
 	var dir := _exit_direction(player.global_position)
 	if dir == Vector2i.ZERO:
 		_warned_invalid = false
@@ -141,10 +180,11 @@ func _try_transition(dir: Vector2i) -> void:
 	is_transitioning = true
 	var from_cell := current_cell
 	var start := global_position
-	var end := _cell_center(target)
+	var target_region: RoomRegion = _cell_regions[target]
 	_freeze_gameplay()
 	var player_start := player.global_position
-	var player_end := _entry_position(_cell_regions[target], target, dir, player_start)
+	var player_end := _entry_position(target_region, target, dir, player_start)
+	var end := _clamped_follow_position(target_region, player_end) if _is_smooth_follow(target_region) else _cell_center(target)
 	transition_started.emit(from_cell, target)
 	if debug_enabled:
 		print("[RoomCamera] transition ", from_cell, " -> ", target, " camera ", start, " -> ", end)
@@ -160,6 +200,7 @@ func _try_transition(dir: Vector2i) -> void:
 	global_position = end
 	player.global_position = _player_to
 	current_cell = target
+	current_region = target_region
 	_unfreeze_gameplay()
 	is_transitioning = false
 	transition_finished.emit(current_cell)

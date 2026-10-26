@@ -1284,21 +1284,27 @@ debug_enabled = true
 [node name="Room_Start" type="Node2D" parent="." unique_id=1577820224]
 position = Vector2(0, -192)
 script = ExtResource("room_region_script")
+camera_mode = null
 connects_to = Array[NodePath]([NodePath("../Room_East"), NodePath("../Room_South")])
 
 [node name="Room_East" type="Node2D" parent="." unique_id=1588661497]
 position = Vector2(256, -192)
 script = ExtResource("room_region_script")
+camera_mode = 1
 screens = Vector2i(3, 1)
 connects_to = Array[NodePath]([NodePath("../Room_SouthEast")])
 
 [node name="Room_South" type="Node2D" parent="." unique_id=1910889518]
+visible = false
 position = Vector2(0, 48)
 script = ExtResource("room_region_script")
+camera_mode = null
 screens = Vector2i(1, 2)
 connects_to = Array[NodePath]([NodePath("../Room_SouthEast")])
 
 [node name="Room_SouthEast" type="Node2D" parent="." unique_id=1815572175]
+visible = false
 position = Vector2(256, 48)
 script = ExtResource("room_region_script")
+camera_mode = null
 screens = Vector2i(2, 2)

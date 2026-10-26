@@ -2,7 +2,12 @@
 
 Script: `Scripts/Levels/room_camera.gd` (`class_name RoomCamera`, extends `Camera2D`)
 
-A fixed, non-following camera that shows exactly one screen-sized cell (viewport 256x240, zoom 1) at a time. When the player leaves the current cell, the camera slides one screen over while the rest of the level is frozen.
+A camera with two behaviours, chosen per region by `RoomRegion.camera_mode`:
+
+- **FIXED_SCREEN** (default): shows one 256x240 cell at a time. Crossing a cell edge slides the camera one screen over while the rest of the level is frozen.
+- **SMOOTH_FOLLOW**: follows the player inside the region, clamped to the region's outer rectangle. Internal cell edges cause no slide, no freeze and no player repositioning.
+
+**Rule:** a slide happens when the player crosses a cell edge and either the region changes or the current region is FIXED_SCREEN. So leaving any region, smooth or not, always gives a camera step.
 
 ## Setup
 
@@ -19,6 +24,7 @@ A fixed, non-following camera that shows exactly one screen-sized cell (viewport
 | `screen_cell` | `(0,0)` | Starting cell, relative to the placement screen (x = column, y = row) |
 | `transition_duration` | `1.0` | Seconds for a slide (sine in/out) |
 | `entry_push` | `24` | Pixels the player is carried into the new screen when no entry marker exists (skipped if a wall blocks it) |
+| `follow_catch_up_speed` | `8` | SMOOTH_FOLLOW only: how fast the camera catches up (0 = locked to the player) |
 | `debug_enabled` | `false` | Prints debug logs |
 
 ## Signals
@@ -39,3 +45,10 @@ A fixed, non-following camera that shows exactly one screen-sized cell (viewport
 5. **Freezing**: every sibling of the camera except itself and `CanvasLayer`s gets `process_mode = DISABLED`. Previous modes are saved and restored exactly afterwards. This includes the player, enemies, projectiles and hazards.
 
 See `ROOM_REGION.md` for how rooms are defined.
+
+## Smooth-follow details
+
+- `current_region` tracks the region the player is in. While in a smooth region, `current_cell` follows the player's cell, so only a real region exit reaches the normal exit check (connectivity and `allows_exit` still apply).
+- **Limits** (`_clamped_follow_position`): the camera center is clamped to the region rectangle (`global_position`, `screens` x 256x240) shrunk by half the viewport on each side. An axis where the region is smaller than the view is centered. Zoom is assumed to be 1.
+- **Slide into a smooth region** ends at the follow position for the player's entry point, not at a cell center.
+- Positions are pixel-rounded, and the camera runs after the player (`process_physics_priority = 1`).
