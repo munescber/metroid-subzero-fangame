@@ -31,6 +31,18 @@ const CHARGE_EFFECT_MAX_SCALE := 1.0
 # It restricts the cut to the player's own jump, and makes it happen at most once.
 var is_jump_rising: bool = false
 
+# Spin jump: a jump taken with enough horizontal speed plays SPIN_JUMP_ANIM and gets a
+# slightly stronger takeoff. The style is chosen once at takeoff, never while airborne.
+# Minimum |velocity.x| in px/s at takeoff. Run speed is a flat MOVE_SPEED (no acceleration),
+# so this currently acts as a "is running" switch; keep it at or below MOVE_SPEED.
+@export var spin_jump_speed_threshold: float = 80.0
+# Multiplies jump_velocity at takeoff (> 1 = higher, since jump_velocity is negative).
+@export_range(1.0, 1.5, 0.01) var spin_jump_velocity_multiplier: float = 1.08
+# SpriteFrames animation name for the spin (looping OFF so animation_finished fires).
+const SPIN_JUMP_ANIM := "spin_jump"
+# True from a spin takeoff until the animation ends, or the player lands, dashes or gets hit.
+var is_spin_jumping: bool = false
+
 # The player's own gravity in px/s^2, independent of the project's default_gravity
 # (which other bodies, such as the rhinobug, still read).
 @export var jump_gravity: float = 750.0
@@ -174,6 +186,7 @@ func _update_aim_press_order() -> void:
 
 func _ready():
 	sprite.play("idle")
+	sprite.animation_finished.connect(_on_sprite_animation_finished)
 	_update_muzzle_position()
 
 	# initialize HealthComponent with the exported max health before any fight damage occurs
@@ -256,7 +269,14 @@ func _fire_charge_beam() -> void:
 	_spawn_projectile(charge_beam_scene)
 
 
+# Firing ends the spin for the rest of the jump so the shot leaves a normal pose
+# (jump/fall) instead of a spinning body. A later jump picks its style again.
+func _cancel_spin_for_shot() -> void:
+	is_spin_jumping = false
+
+
 func _spawn_projectile(scene: PackedScene) -> void:
+	_cancel_spin_for_shot()
 	var shot := _get_shot_origin_and_dir()
 	var final_dir: Vector2 = shot[1]
 	var projectile = scene.instantiate()
@@ -306,6 +326,10 @@ func _reset_charge() -> void:
 
 
 func _update_charge_visual() -> void:
+	# the glow looks wrong on a spinning body; the charge itself keeps building underneath
+	if is_spin_jumping:
+		charge_effect.visible = false
+		return
 	var ratio: float = clampf(charge_time / maxf(charge_time_required, 0.001), 0.0, 1.0)
 	charge_effect.visible = true
 	if is_charged:
@@ -344,6 +368,7 @@ func _try_fire_missile() -> void:
 
 	missile_timer = MISSILE_COOLDOWN
 	missile_ammo -= 1
+	_cancel_spin_for_shot()
 	var shot := _get_shot_origin_and_dir()
 	var final_dir: Vector2 = shot[1]
 	var missile = missile_scene.instantiate()
@@ -364,7 +389,7 @@ func handle_dash(delta):
 	if is_on_floor():
 		air_dash_used = false
 		down_dash_used = false
-	elif is_dashing:
+	elif is_dashing and not dash_is_downward:
 		# a ground dash that carries the player off a ledge counts as the air dash
 		air_dash_used = true
 
@@ -409,6 +434,7 @@ func _start_dash(downward: bool = false) -> void:
 	# the dash replaces any jump/fall momentum instead of inheriting it
 	velocity = Vector2.ZERO
 	is_jump_rising = false
+	is_spin_jumping = false
 
 
 func _update_dash(delta: float) -> void:
@@ -471,8 +497,12 @@ func handle_jump():
 	if is_dashing:
 		return
 	if Input.is_action_just_pressed("jump") and is_on_floor():
-		velocity.y = jump_velocity
+		# jump style is decided here only, from the speed at takeoff
+		is_spin_jumping = abs(velocity.x) >= spin_jump_speed_threshold
+		velocity.y = jump_velocity * (spin_jump_velocity_multiplier if is_spin_jumping else 1.0)
 		is_jump_rising = true
+	elif is_on_floor():
+		is_spin_jumping = false
 
 	if not is_jump_rising:
 		return
@@ -569,7 +599,10 @@ func update_animation():
 	elif !is_on_floor():
 		# the air dash zeroes velocity.y, so keep the current pose instead of flipping to "fall"
 		if not is_dashing:
-			if _is_aiming_straight_up() and _has_anim("jump_aim_up"):
+			# the spin wins over aim-up until it finishes, then jump_aim_up/fall resume
+			if is_spin_jumping and _has_anim(SPIN_JUMP_ANIM):
+				_play_anim(SPIN_JUMP_ANIM)
+			elif _is_aiming_straight_up() and _has_anim("jump_aim_up"):
 				_play_anim("jump_aim_up")
 			else:
 				sprite.play("jump" if velocity.y < 0.0 else "fall")
@@ -604,6 +637,12 @@ func _has_anim(anim_name: String) -> bool:
 	return false
 
 
+# The spin is a one-shot: once it ends, normal airborne animations take over.
+func _on_sprite_animation_finished() -> void:
+	if sprite.animation == SPIN_JUMP_ANIM:
+		is_spin_jumping = false
+
+
 func _play_anim(anim_name: String) -> void:
 	if sprite.animation != anim_name or not sprite.is_playing():
 		sprite.play(anim_name)
@@ -633,7 +672,8 @@ func take_damage(amount: int, source = null) -> void:
 	knockback_lock_timer = knockback_lock_duration
 	# the knockback's upward speed must not be cut by releasing jump
 	is_jump_rising = false
-	
+	is_spin_jumping = false
+
 	# mark invulnerable and start timers
 	invulnerable = true
 	invul_timer = invulnerability_time

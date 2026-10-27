@@ -10,6 +10,7 @@
 [ext_resource type="Texture2D" uid="uid://cob4uc77oijuo" path="res://Spritesheets/Rundas/rundas_walk_2_2.png" id="6_jlvik"]
 [ext_resource type="Texture2D" uid="uid://dho7x51lyftp0" path="res://Spritesheets/Rundas/rundas_jump_aim_up.png" id="7_gk6dx"]
 [ext_resource type="Texture2D" uid="uid://b2xitnmthsshm" path="res://Spritesheets/Rundas/rundas_idle_aim_up.png" id="7_jhyir"]
+[ext_resource type="Texture2D" uid="uid://bqw7uqhkrlqb0" path="res://Spritesheets/Rundas/rundas_spin_jump.png" id="9_oikmp"]
 [ext_resource type="Texture2D" uid="uid://latjutj7ek3h" path="res://Spritesheets/Rundas/rundas_walk_aim_up.png" id="10_74mp2"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_kymcg"]
@@ -50,6 +51,22 @@ region = Rect2(0, 0, 16, 32)
 [sub_resource type="AtlasTexture" id="AtlasTexture_jhyir"]
 atlas = ExtResource("7_gk6dx")
 region = Rect2(0, 0, 16, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_2ahak"]
+atlas = ExtResource("9_oikmp")
+region = Rect2(0, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_rukb4"]
+atlas = ExtResource("9_oikmp")
+region = Rect2(32, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_4no11"]
+atlas = ExtResource("9_oikmp")
+region = Rect2(0, 32, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_fcwna"]
+atlas = ExtResource("9_oikmp")
+region = Rect2(32, 32, 32, 32)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_rcvs5"]
 atlas = ExtResource("6_jlvik")
@@ -170,6 +187,23 @@ animations = [{
 }, {
 "frames": [{
 "duration": 1.0,
+"texture": SubResource("AtlasTexture_2ahak")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_rukb4")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_4no11")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_fcwna")
+}],
+"loop": 1,
+"name": &"spin_jump",
+"speed": 10.0
+}, {
+"frames": [{
+"duration": 1.0,
 "texture": SubResource("AtlasTexture_rcvs5")
 }, {
 "duration": 1.0,
@@ -255,8 +289,9 @@ position = Vector2(11, 9)
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=181990051]
 sprite_frames = SubResource("SpriteFrames_6ce0r")
-animation = &"dash_downward"
+animation = &"spin_jump"
 autoplay = "idle"
+frame_progress = 0.88457453
 
 [node name="Hurtbox" type="Area2D" parent="." unique_id=981234567]
 collision_layer = 16
