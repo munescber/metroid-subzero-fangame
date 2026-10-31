@@ -4,6 +4,8 @@ class_name HealthComponent
 
 signal damaged(amount, new_health)
 signal died()
+## Emitted whenever current or maximum health changes (damage, heal, new max).
+signal health_changed(current_health, max_health)
 
 @export var debug_enabled: bool = false
 
@@ -12,6 +14,7 @@ var current_health: int = 0
 
 func _ready() -> void:
     current_health = max_health
+    emit_signal("health_changed", current_health, max_health)
 
 func take_damage(amount: int, source = null) -> void:
     if amount <= 0:
@@ -30,6 +33,7 @@ func take_damage(amount: int, source = null) -> void:
     if debug_enabled:
         print_debug("[HealthComponent] Damage applied: ", amount, " from=", source, " previous=", previous_health, " current=", current_health)
     emit_signal("damaged", amount, current_health)
+    emit_signal("health_changed", current_health, max_health)
 
     if current_health <= 0:
         current_health = 0
@@ -45,7 +49,9 @@ func heal(amount: int) -> void:
         return
 
     current_health = min(current_health + amount, max_health)
+    emit_signal("health_changed", current_health, max_health)
 
 func set_max_health(new_max: int) -> void:
     max_health = max(1, new_max)
     current_health = clamp(current_health, 0, max_health)
+    emit_signal("health_changed", current_health, max_health)

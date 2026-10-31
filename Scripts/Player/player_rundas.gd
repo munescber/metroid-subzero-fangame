@@ -1,12 +1,19 @@
 extends CharacterBody2D
 
+## Emitted when health changes (damage, heal, new max). Forwarded from HealthComponent.
+signal health_changed(current_hp: int, max_hp: int)
+## Emitted when missile ammo or capacity changes.
+signal missiles_changed(current_ammo: int, max_ammo: int)
+## Emitted once, when missiles are first unlocked.
+signal missiles_acquired
+
 # ==================================================
 # Player Movement Settings
 # ==================================================
 
 const MOVE_SPEED := 80.0
-const SHOOT_COOLDOWN := 0.20
-const MISSILE_COOLDOWN := 0.6
+const SHOOT_COOLDOWN := 0.10
+const MISSILE_COOLDOWN := 0.20
 const BULLET_OFFSET := Vector2(12, 0)
 const AIM_UP_ANGLE := PI/4
 const AIM_DOWN_ANGLE := -PI/4
@@ -70,7 +77,7 @@ var missile_scene: PackedScene = preload("res://Scenes/Player/missile.tscn")
 
 # Charge beam state: pressing "shoot" starts a charge. On release the player fires
 # a normal bullet, or the charge beam if held past charge_time_required.
-@export var charge_time_required: float = 1.0
+@export var charge_time_required: float = 0.8
 var is_charging: bool = false
 var is_charged: bool = false
 var charge_time: float = 0.0
@@ -99,11 +106,22 @@ var health_comp: HealthComponent = null
 
 # Missiles: unlock state and ammo are independent (unlocked with 0 ammo can't fire).
 ## Whether missile shooting is unlocked at start (set true to test without a pickup).
-@export var missiles_unlocked: bool = false
+@export var missiles_unlocked: bool = false:
+	set(value):
+		var newly_unlocked := value and not missiles_unlocked
+		missiles_unlocked = value
+		if newly_unlocked:
+			missiles_acquired.emit()
+## Maximum missile ammo the player can carry (raise with increase_missile_capacity).
+@export_range(0, 9999, 1, "or_greater") var missile_max_ammo: int = 50:
+	set(value):
+		missile_max_ammo = maxi(value, 0)
+		missiles_changed.emit(missile_ammo, missile_max_ammo)
 ## Current missile ammo. Starting value is editable for testing; never negative.
 @export_range(0, 9999, 1, "or_greater") var missile_ammo: int = 0:
 	set(value):
 		missile_ammo = maxi(value, 0)
+		missiles_changed.emit(missile_ammo, missile_max_ammo)
 ## Ammo granted by each missile pickup.
 @export_range(1, 999, 1, "or_greater") var missile_pickup_amount: int = 5
 
@@ -195,6 +213,7 @@ func _ready():
 	add_child(health_comp)
 	health_comp.connect("damaged", Callable(self, "_on_health_damaged"))
 	health_comp.connect("died", Callable(self, "_on_health_died"))
+	health_comp.health_changed.connect(func(cur: int, mx: int) -> void: health_changed.emit(cur, mx))
 
 	# save original sprite modulate for blinking
 	_original_modulate = sprite.modulate
@@ -344,14 +363,33 @@ func _update_charge_visual() -> void:
 		charge_effect.modulate = Color(1, 1, 1, lerpf(0.3, 0.8, ratio) * (0.8 + 0.2 * pulse))
 
 
-## Called by MissilePickup. There is no ammo cap in this project, so the
-## "y" in the log is shown as ∞ rather than an invented maximum.
+## Called by MissilePickup.
 func collect_missiles() -> void:
 	if not missiles_unlocked:
 		missiles_unlocked = true
 		print("Missile enabled")
-	missile_ammo += missile_pickup_amount
-	print("Missiles obtained. Count %d/∞" % missile_ammo)
+	missile_ammo = mini(missile_ammo + missile_pickup_amount, maxi(missile_max_ammo, missile_ammo))
+	print("Missiles obtained. Count %d/%d" % [missile_ammo, missile_max_ammo])
+
+
+## Raises missile capacity and, like the classic expansions, grants the same ammo.
+func increase_missile_capacity(amount: int) -> void:
+	if amount <= 0:
+		return
+	missile_max_ammo += amount
+	missile_ammo += amount
+
+
+func heal(amount: int) -> void:
+	if health_comp:
+		health_comp.heal(amount)
+
+
+## Raises max health and heals by the same amount (energy-tank style).
+func increase_max_health(amount: int) -> void:
+	if health_comp and amount > 0:
+		health_comp.set_max_health(health_comp.max_health + amount)
+		health_comp.heal(amount)
 
 
 func _try_fire_missile() -> void:
@@ -604,14 +642,24 @@ func update_animation():
 				_play_anim(SPIN_JUMP_ANIM)
 			elif _is_aiming_straight_up() and _has_anim("jump_aim_up"):
 				_play_anim("jump_aim_up")
+			elif _is_aiming_straight_down() and _has_anim("jump_aim_down"):
+				_play_anim("jump_aim_down")
+			elif _is_aiming_diagonal_up() and _has_anim("jump_aim_diagonal_up"):
+				_play_anim("jump_aim_diagonal_up")
 			else:
 				sprite.play("jump" if velocity.y < 0.0 else "fall")
 
 	elif _is_aiming_straight_up() and abs(velocity.x) > 0 and _has_anim("walk_aim_up"):
 		_play_anim("walk_aim_up")
 
+	elif _is_aiming_diagonal_up() and abs(velocity.x) > 0 and _has_anim("walk_aim_diagonal_up"):
+		_play_anim("walk_aim_diagonal_up")
+
 	elif _is_aiming_straight_up() and _has_anim("idle_aim_up"):
 		_play_anim("idle_aim_up")
+
+	elif _is_aiming_diagonal_up() and _has_anim("idle_aim_diagonal_up"):
+		_play_anim("idle_aim_diagonal_up")
 
 	elif abs(velocity.x) > 0:
 		sprite.play("walk")
@@ -623,6 +671,16 @@ func update_animation():
 # Straight-up aim comes from the centralized aim resolver (W held and winning priority).
 func _is_aiming_straight_up() -> bool:
 	return get_aim_direction() == Vector2.UP
+
+
+func _is_aiming_straight_down() -> bool:
+	return get_aim_direction() == Vector2.DOWN
+
+
+# Diagonal-up aim (Q): x follows the facing side, y is up.
+func _is_aiming_diagonal_up() -> bool:
+	var dir: Vector2 = get_aim_direction()
+	return dir.y < 0.0 and not is_zero_approx(dir.x)
 
 
 var _warned_missing_anims: Dictionary = {}

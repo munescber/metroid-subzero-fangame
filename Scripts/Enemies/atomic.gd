@@ -8,9 +8,6 @@ class_name Atomic
 
 enum State {
 	FLOATING,
-	CHARGING,
-	DASHING,
-	RECOVERING,
 	ELECTRIC_CHARGING,
 	ELECTRIC_FIELD,
 	COOLDOWN,
@@ -25,7 +22,6 @@ var current_state: State = State.FLOATING
 
 @export_category("Feature Toggles")
 @export var enable_wandering: bool = true
-@export var enable_attacks: bool = true
 @export var enable_electric_field: bool = true
 
 @export var max_health: int = 10
@@ -64,21 +60,6 @@ var player: Node2D = null
 var player_detected: bool = false
 
 # ==============================================================================
-# CHARGING & DASH
-# ==============================================================================
-
-@export_category("Attack")
-@export var charge_duration: float = 0.6
-@export var dash_speed: float = 150.0
-@export var dash_duration: float = 0.4
-@export var dash_cooldown: float = 1.0
-
-var charge_timer: float = 0.0
-var dash_timer: float = 0.0
-var dash_direction: Vector2 = Vector2.ZERO
-var cooldown_timer: float = 0.0
-
-# ==============================================================================
 # ELECTRIC FIELD
 # ==============================================================================
 
@@ -103,11 +84,12 @@ var field_active: bool = false
 # ==============================================================================
 
 @export_category("Visual")
-@export var rotation_speed: float = 1.0
 @export var glow_intensity: float = 0.0
 
 const GLOW_COLOR_IDLE := Color(1, 1, 1, 1)
 const GLOW_COLOR_CHARGED := Color(1, 0.85, 0.15, 1)
+
+var field_visual_base_scale: Vector2 = Vector2.ONE  # scene-authored scale of the field sprite at full size
 
 @onready var visuals: Node2D = $Visuals
 @onready var animated_sprite: AnimatedSprite2D = $Visuals/AnimatedSprite2D
@@ -146,7 +128,7 @@ func _ready() -> void:
 	# Find player
 	player = _find_player()
 	if debug_enabled:
-		print_debug("[Atomic] Ready. Player found: ", player, " | enable_attacks=", enable_attacks, " enable_electric_field=", enable_electric_field)
+		print_debug("[Atomic] Ready. Player found: ", player, " | enable_electric_field=", enable_electric_field)
 	if not player and debug_enabled:
 		push_warning("Atomic: Player not found in 'player' group")
 	
@@ -179,6 +161,7 @@ func _ready() -> void:
 	animated_sprite.play("default")
 	electric_field_visual.play("default")
 	electric_field_visual.visible = false
+	field_visual_base_scale = electric_field_visual.scale
 	electric_field_area.set_deferred("monitoring", false)
 
 func _physics_process(delta: float) -> void:
@@ -194,11 +177,7 @@ func _physics_process(delta: float) -> void:
 	if current_state == State.DEAD:
 		return
 	
-	# Always apply continuous rotation to visuals (doesn't rotate collision nodes)
-	if visuals:
-		visuals.rotation += rotation_speed * delta
-	
-	# Electric field runs on its own independent schedule, regardless of enable_attacks
+	# Electric field runs on its own independent schedule
 	if enable_electric_field and current_state != State.ELECTRIC_CHARGING and current_state != State.ELECTRIC_FIELD:
 		electric_field_interval_timer += delta
 	
@@ -209,12 +188,6 @@ func _physics_process(delta: float) -> void:
 	match current_state:
 		State.FLOATING:
 			_update_floating(delta)
-		State.CHARGING:
-			_update_charging(delta)
-		State.DASHING:
-			_update_dashing(delta)
-		State.RECOVERING:
-			_update_recovering(delta)
 		State.ELECTRIC_CHARGING:
 			_update_electric_charging(delta)
 		State.ELECTRIC_FIELD:
@@ -232,8 +205,7 @@ func _draw() -> void:
 	# Visualizes the electric field's actual hit radius (debug_enabled only) since the sprite itself stays a fixed size
 	if not debug_enabled or not electric_field_area:
 		return
-	var radius = electric_field_radius * electric_field_area.scale.x
-	draw_arc(Vector2.ZERO, radius, 0.0, TAU, 32, Color(1, 1, 0, 0.6), 2.0)
+	draw_arc(Vector2.ZERO, _current_field_radius(), 0.0, TAU, 32, Color(1, 1, 0, 0.6), 2.0)
 
 # ==============================================================================
 # FLOATING STATE
@@ -264,13 +236,7 @@ func _update_floating(delta: float) -> void:
 			if debug_enabled:
 				print_debug("[Atomic] Player disengaged at distance: ", dist_to_player)
 	
-	# If player detected and conditions met, start charging
-	if player_detected and cooldown_timer <= 0.0:
-		if enable_attacks:
-			_transition_to_state(State.CHARGING)
-			return
-	
-	# Gravitate slowly toward the player while detected (even without attacks)
+	# Gravitate slowly toward the player while detected
 	if player_detected:
 		_update_seeking(delta)
 		return
@@ -325,52 +291,6 @@ func _find_player() -> Node2D:
 	return null
 
 # ==============================================================================
-# CHARGING STATE
-# ==============================================================================
-
-func _update_charging(delta: float) -> void:
-	# Aim at player
-	if player:
-		var direction_to_player = (player.global_position - global_position).normalized()
-		dash_direction = direction_to_player
-	
-		if charge_timer == 0.0 and debug_enabled:
-			print_debug("[Atomic] CHARGING towards player! Direction: ", dash_direction)
-	
-	# Reduce movement during charge
-	current_velocity *= 0.95
-	
-	# Increase glow as warning
-	glow_intensity = min(1.0, glow_intensity + 2.0 * delta)
-	
-	charge_timer += delta
-	if charge_timer >= charge_duration:
-		_transition_to_state(State.DASHING)
-
-# ==============================================================================
-# DASHING STATE
-# ==============================================================================
-
-func _update_dashing(delta: float) -> void:
-	current_velocity = dash_direction * dash_speed
-	
-	dash_timer += delta
-	if dash_timer >= dash_duration:
-		_transition_to_state(State.RECOVERING)
-
-# ==============================================================================
-# RECOVERING STATE
-# ==============================================================================
-
-func _update_recovering(delta: float) -> void:
-	# Slow down
-	current_velocity *= 0.9
-	
-	cooldown_timer += delta
-	if cooldown_timer >= dash_cooldown:
-		_transition_to_state(State.COOLDOWN)
-
-# ==============================================================================
 # ELECTRIC CHARGING STATE
 # ==============================================================================
 
@@ -385,7 +305,10 @@ func _update_electric_charging(delta: float) -> void:
 	
 	if electric_charge_timer == 0.0 and debug_enabled:
 		print_debug("[Atomic] CHARGING electric field! Intensity building...")
-	
+
+	# The growing field already hurts the player; it only blocks projectiles once fully on
+	_tick_field_damage(delta)
+
 	electric_charge_timer += delta
 	if electric_charge_timer >= electric_charge_duration:
 		_transition_to_state(State.ELECTRIC_FIELD)
@@ -403,25 +326,35 @@ func _update_electric_field(delta: float) -> void:
 	if electric_field_timer == 0.0 and debug_enabled:
 		print_debug("[Atomic] ELECTRIC FIELD ACTIVATED! Radius: ", electric_field_radius, " Damage: ", electric_field_damage)
 	
-	# Query overlaps on a fixed tick instead of every frame: area_entered only fires on new overlaps
-	# (so a stationary player would never be hit), but querying 60x/sec is wasted work and log spam
-	# once the player's own invulnerability window is already blocking repeat hits.
-	electric_field_damage_tick_timer -= delta
-	if electric_field_damage_tick_timer <= 0.0:
-		electric_field_damage_tick_timer = electric_field_damage_tick
-		_apply_electric_field_damage()
-	
+	_tick_field_damage(delta)
+
 	electric_field_timer += delta
 	if electric_field_timer >= electric_field_duration:
 		if debug_enabled:
 			print_debug("[Atomic] Electric field deactivating...")
 		_transition_to_state(State.COOLDOWN)
 
+# Single source of truth for how big the field is right now (it grows while charging).
+# The sprite, the blocking area and the damage query all derive their size from this.
+func _field_scale() -> float:
+	return 0.5 + (glow_intensity / 4.0)
+
+func _current_field_radius() -> float:
+	return electric_field_radius * _field_scale()
+
+# Query overlaps on a fixed tick instead of every frame: area_entered only fires on new overlaps
+# (so a stationary player would never be hit), but querying 60x/sec is wasted work and log spam
+# once the player's own invulnerability window is already blocking repeat hits.
+func _tick_field_damage(delta: float) -> void:
+	electric_field_damage_tick_timer -= delta
+	if electric_field_damage_tick_timer <= 0.0:
+		electric_field_damage_tick_timer = electric_field_damage_tick
+		_apply_electric_field_damage()
+
 func _apply_electric_field_damage() -> void:
 	var space_state := get_world_2d().direct_space_state
 	var shape := CircleShape2D.new()
-	# Match the area's current (glow-scaled) size so the damage range always equals what's visible/blocking bullets
-	shape.radius = electric_field_radius * electric_field_area.scale.x
+	shape.radius = _current_field_radius()
 	
 	var query := PhysicsShapeQueryParameters2D.new()
 	query.shape = shape
@@ -451,22 +384,52 @@ func _try_hit_player_area(area: Area2D) -> bool:
 	return false
 
 func _on_electric_field_entered(area: Area2D) -> void:
-	if not field_active:
+	# The area monitors from the start of charging so the growing field can spike-hit the player
+	if current_state != State.ELECTRIC_CHARGING and current_state != State.ELECTRIC_FIELD:
 		return
-	
+
 	# Instant "spike" hit the moment the player's Hurtbox touches the field's edge
 	if _try_hit_player_area(area):
 		return
-	
-	# Destroy missiles/projectiles (both bullet and missile scenes name their combat Area2D "Hitbox")
-	if area.name == "Hitbox":
-		var area_parent = area.get_parent()
-		if debug_enabled:
-			print_debug("[Atomic] Electric field destroyed projectile: ", area.name)
-		if area_parent and area_parent.has_method("take_damage"):
-			area_parent.queue_free()
-		else:
-			area.queue_free()
+
+	# Projectiles are only blocked once the field is fully on
+	if field_active:
+		_destroy_projectile(area)
+
+# Stops a player projectile at the field's edge. The whole projectile is removed (not just its
+# Hitbox child, which would leave the sprite flying on harmlessly).
+func _destroy_projectile(area: Area2D) -> void:
+	var projectile: Node = area.get_parent()
+	if projectile is Missile:
+		if projectile.has_exploded:
+			return
+		# Detonates at the field's edge, away from the Atomic's body
+		projectile.explode(projectile.global_position)
+	elif projectile is Bullet:
+		projectile._spawn_impact(projectile.global_position)
+		projectile.queue_free()
+	else:
+		return
+	if debug_enabled:
+		print_debug("[Atomic] Electric field destroyed projectile: ", projectile.name)
+
+# area_entered only fires for overlaps that begin while monitoring is on, so anything that
+# drifted into the growing field during the charge is cleared once, the moment it goes fully on.
+func _clear_projectiles_in_field() -> void:
+	var shape := CircleShape2D.new()
+	shape.radius = _current_field_radius()
+
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = shape
+	query.transform = Transform2D(0.0, global_position)
+	query.collision_mask = 8  # Hitbox layer
+	query.collide_with_areas = true
+	query.collide_with_bodies = false
+
+	for result: Dictionary in get_world_2d().direct_space_state.intersect_shape(query):
+		var area: Area2D = result.get("collider")
+		if area != null:
+			_destroy_projectile(area)
 
 # ==============================================================================
 # COOLDOWN STATE
@@ -495,31 +458,23 @@ func _transition_to_state(new_state: State) -> void:
 	
 	# Reset timers based on new state
 	match new_state:
-		State.CHARGING:
-			charge_timer = 0.0
-		State.DASHING:
-			dash_timer = 0.0
-			if debug_enabled:
-				print_debug("[Atomic] DASH ATTACK! Speed: ", dash_speed, " Duration: ", dash_duration, "s")
-		State.RECOVERING:
-			cooldown_timer = 0.0
 		State.ELECTRIC_CHARGING:
 			electric_charge_timer = 0.0
+			electric_field_damage_tick_timer = 0.0
 			current_velocity = Vector2.ZERO
+			# Monitoring starts with the growing field so it can spike-hit the player on entry
+			electric_field_area.set_deferred("monitoring", true)
 		State.ELECTRIC_FIELD:
 			electric_field_timer = 0.0
-			electric_field_damage_tick_timer = 0.0
 			field_active = true
-			electric_field_area.set_deferred("monitoring", true)
 			hurtbox.set_deferred("monitoring", false)
+			_clear_projectiles_in_field()
 		State.COOLDOWN:
 			electric_cooldown_timer = 0.0
 			field_active = false
 			electric_field_area.set_deferred("monitoring", false)
 			hurtbox.set_deferred("monitoring", true)
-			cooldown_timer = 0.0  # release the attack-trigger gate for the next cycle
 		State.FLOATING:
-			cooldown_timer = 0.0  # in case electric field was disabled and we skipped COOLDOWN's reset
 			electric_field_interval_timer = 0.0
 
 # ==============================================================================
@@ -527,13 +482,14 @@ func _transition_to_state(new_state: State) -> void:
 # ==============================================================================
 
 func _update_glow_intensity(_delta: float) -> void:
-	# Update field collision area size based on glow. Caps at 1.0 so the fully-active
-	# field's real hit radius matches its resting/visible size instead of overshooting it.
-	var field_scale = 0.5 + (glow_intensity / 4.0)
-	
+	# Sprite and blocking area scale together so the visible ring is the real hit radius.
+	# Caps at 1.0 so the fully-active field matches its authored size instead of overshooting it.
+	var field_scale = _field_scale()
+
 	if electric_field_visual:
 		electric_field_visual.visible = glow_intensity > 0.01
 		electric_field_visual.modulate.a = glow_intensity / 2.0
+		electric_field_visual.scale = field_visual_base_scale * field_scale
 	
 	if electric_field_area:
 		electric_field_area.scale = Vector2(field_scale, field_scale)
