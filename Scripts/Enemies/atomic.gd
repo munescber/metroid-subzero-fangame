@@ -277,18 +277,10 @@ func _choose_new_float_target() -> void:
 	var random_distance = randf_range(50.0, 120.0)
 	float_target = global_position + Vector2(cos(random_angle), sin(random_angle)) * random_distance
 
-# Group lookup can fail if the scene's group membership hasn't been picked up yet,
-# so fall back to duck-typing any player-script node in the current scene.
+# The player joins the "player" group in its own _ready(), so this can come back
+# empty if Atomic readies first; _physics_process retries until it is found.
 func _find_player() -> Node2D:
-	var found = get_tree().get_first_node_in_group("player")
-	if found:
-		return found
-	var scene_root = get_tree().current_scene
-	if scene_root:
-		for child in scene_root.get_children():
-			if child.has_method("get_aim_direction") and child.has_method("take_damage"):
-				return child
-	return null
+	return get_tree().get_first_node_in_group("player")
 
 # ==============================================================================
 # ELECTRIC CHARGING STATE
@@ -525,7 +517,11 @@ func _on_damage_flash_timer_timeout() -> void:
 	if animated_sprite:
 		animated_sprite.modulate = GLOW_COLOR_IDLE.lerp(GLOW_COLOR_CHARGED, glow_intensity / 2.0)
 
+## Optional drop override; empty uses the default DropManager table.
+@export var drop_table: DropTable
+
 func _on_health_died() -> void:
+	DropManager.try_drop(self, drop_table)
 	if debug_enabled:
 		print_debug("[Atomic] Defeated!")
 	_transition_to_state(State.DEAD)

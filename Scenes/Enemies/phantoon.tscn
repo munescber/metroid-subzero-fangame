@@ -44,6 +44,11 @@ radius = 5.0
 [node name="Phantoon" type="CharacterBody2D" unique_id=1314953276]
 collision_layer = 4
 script = ExtResource("script_phantoon")
+orbit_speed = 1.25
+max_health = 150
+pause_duration = 1.5
+dash_speed = 150.0
+show_dash_marker = false
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1968815399]
 sprite_frames = SubResource("SpriteFrames_aavg1")

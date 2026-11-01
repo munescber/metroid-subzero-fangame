@@ -41,15 +41,18 @@ func take_damage(amount: int, source = null) -> void:
             print_debug("[HealthComponent] Death triggered for health component on source=", source)
         emit_signal("died")
 
-func heal(amount: int) -> void:
+## Returns the HP actually restored (0 if dead, full, or amount <= 0).
+func heal(amount: int) -> int:
     if amount <= 0:
-        return
+        return 0
 
     if current_health <= 0:
-        return
+        return 0
 
+    var previous_health := current_health
     current_health = min(current_health + amount, max_health)
     emit_signal("health_changed", current_health, max_health)
+    return current_health - previous_health
 
 func set_max_health(new_max: int) -> void:
     max_health = max(1, new_max)

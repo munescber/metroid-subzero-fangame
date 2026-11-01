@@ -8,11 +8,12 @@ class_name GhostCovern
 # ==============================================================================
 # STATE MACHINE
 # ==============================================================================
+# Intangibility is an overlay on top of WANDERING/HAUNTING (see is_intangible), not a
+# state of its own, so the ghost keeps moving and chasing while it phases out.
 
 enum State {
 	WANDERING,
 	HAUNTING,
-	INTANGIBLE,
 	DEAD
 }
 
@@ -48,14 +49,26 @@ var player_detected: bool = false
 @export var wander_speed: float = 25.0
 @export var haunt_speed: float = 55.0
 @export var acceleration: float = 100.0
-@export var preferred_distance: float = 40.0
+@export var haunt_smoothing: float = 4.0  # How quickly the chase velocity catches up to the player direction
 @export var wander_radius: float = 150.0  # How far from starting position to wander
+@export var preferred_distance: float = 20.0  # Hover distance from the player while haunting (contact radius is ~15)
+@export var standoff_slow_range: float = 40.0  # Distance over which it eases down to a stop near preferred_distance
+@export var standoff_deadzone: float = 6.0  # Closer than preferred_distance minus this, it drifts back out
+
+@export_category("Crowding")
+@export var separation_radius: float = 28.0  # Other ghosts closer than this push this ghost away
+@export var separation_strength: float = 45.0  # Max push speed (px/s) when another ghost is fully overlapping
+@export var hover_angle_drift: float = 0.4  # Radians/sec the ghost's hover spot orbits the player (direction is random per ghost)
 
 # Movement state
 var current_velocity: Vector2 = Vector2.ZERO
 var wander_target: Vector2 = Vector2.ZERO
 var wander_timer: float = 0.0
 var wander_choose_interval: float = 2.0  # Time between choosing new targets
+
+# Each ghost hovers at its own spot on a ring around the player so several ghosts spread out
+var hover_angle: float = 0.0
+var hover_drift_dir: float = 1.0
 
 # ==============================================================================
 # INTANGIBILITY CONFIGURATION
@@ -78,6 +91,14 @@ var intangible_cooldown_timer: float = 0.0
 @export var max_health: int = 10
 @export var contact_damage_value: int = 1
 
+## Optional drop override; empty uses the default DropManager table.
+@export var drop_table: DropTable
+
+# Damage flash
+const FLASH_DURATION: float = 0.1
+const FLASH_COLOR := Color(1, 0.5, 0.5, 1)
+var flash_timer: float = 0.0
+
 # Death animation
 var is_dying: bool = false
 var death_timer: float = 0.0
@@ -90,20 +111,27 @@ var death_duration: float = 0.5  # Time to fade out
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
 @onready var health: HealthComponent = $HealthComponent
 @onready var hurtbox: Area2D = $Hurtbox
-@onready var detection_area: Area2D = $DetectionArea
 @onready var contact_damage: Node = $ContactDamage
+
+# Layers captured at _ready so intangibility can be undone exactly
+var _body_layer: int = 0
 
 # ==============================================================================
 # INITIALIZATION
 # ==============================================================================
 
 func _ready() -> void:
+	_body_layer = collision_layer
+	add_to_group("ghost_covern")
+	hover_angle = randf_range(0.0, TAU)
+	hover_drift_dir = 1.0 if randf() < 0.5 else -1.0
+
 	# Initialize health component
 	health.max_health = max_health
 	health.current_health = max_health
 	health.damaged.connect(_on_health_damaged)
 	health.died.connect(_on_health_died)
-	
+
 	# Configure contact damage (ghost touching player)
 	if contact_damage:
 		contact_damage.damage = contact_damage_value
@@ -112,20 +140,15 @@ func _ready() -> void:
 		contact_damage.debug_enabled = debug_enabled
 		if debug_enabled:
 			print_debug("[GhostCovern] ContactDamage initialized: damage=", contact_damage_value, " source=", self)
-	
-	# Connect detection area signals if detection is enabled
-	if enable_detection and detection_area:
-		detection_area.area_entered.connect(_on_detection_area_entered)
-		detection_area.area_exited.connect(_on_detection_area_exited)
-	
+
 	# Start with a wandering target if wandering is enabled
 	if enable_wandering:
 		choose_wander_target()
-	
+
 	# Play idle animation
 	if sprite:
 		sprite.play("default")
-	
+
 	# Initialize intangibility cooldown timer
 	intangible_cooldown_timer = intangible_cooldown
 
@@ -135,30 +158,26 @@ func _ready() -> void:
 # ==============================================================================
 
 func _physics_process(delta: float) -> void:
-	# Handle death animation
 	if is_dying:
 		death_timer += delta
 		# Apply gravity during death (fall down)
 		current_velocity.y += 200.0 * delta
-		# Fade out sprite
-		if sprite:
-			var fade_progress = death_timer / death_duration
-			sprite.modulate.a = lerp(1.0, 0.0, fade_progress)
-		# Despawn after death duration
 		if death_timer >= death_duration:
 			queue_free()
 			return
-	
+	else:
+		_update_intangibility(delta)
+
 	match current_state:
 		State.WANDERING:
 			update_wandering_state(delta)
 		State.HAUNTING:
 			update_haunting_state(delta)
-		State.INTANGIBLE:
-			update_intangible_state(delta)
 		State.DEAD:
-			pass  # Dead ghosts don't move
-	
+			pass  # Dead ghosts only fall
+
+	_update_visuals(delta)
+
 	# Apply velocity
 	velocity = current_velocity
 	move_and_slide()
@@ -172,21 +191,21 @@ func update_wandering_state(delta: float) -> void:
 	if not enable_wandering:
 		current_velocity = Vector2.ZERO
 		return
-	
+
 	# Check if player should be detected
 	if enable_detection and enable_haunting:
 		check_player_detection()
 		if player_detected and player:
 			enter_haunting_state()
 			return
-	
+
 	# Move toward wander target
 	var direction_to_target = (wander_target - global_position).normalized()
-	var target_velocity = direction_to_target * wander_speed
-	
+	var target_velocity = direction_to_target * wander_speed + _separation_push()
+
 	# Apply acceleration
 	current_velocity = current_velocity.lerp(target_velocity, acceleration * delta / wander_speed)
-	
+
 	# Choose new target if we're close enough
 	wander_timer += delta
 	if global_position.distance_to(wander_target) < 10.0 or wander_timer >= wander_choose_interval:
@@ -209,71 +228,108 @@ func update_haunting_state(delta: float) -> void:
 	if not enable_haunting:
 		current_velocity = Vector2.ZERO
 		return
-	
+
 	# Validate player reference
 	if not player or not is_instance_valid(player):
 		player = null
 		player_detected = false
 		enter_wandering_state()
 		return
-	
-	# Check if player has moved far enough to disengage
-	if enable_detection and enable_wandering:
-		var distance_to_player = global_position.distance_to(player.global_position)
-		if distance_to_player > disengage_radius:
-			enter_wandering_state()
-			return
-	
-	# Calculate haunting behavior
+
+	# Disengage once the player is far enough away (wider than detection to avoid flicker)
+	if global_position.distance_to(player.global_position) > disengage_radius:
+		player_detected = false
+		enter_wandering_state()
+		return
+
 	haunting_movement(delta)
 
 
 func haunting_movement(delta: float) -> void:
-	"""Move toward player while maintaining preferred distance."""
-	var direction_to_player = (player.global_position - global_position).normalized()
-	var distance_to_player = global_position.distance_to(player.global_position)
-	
-	var target_velocity = Vector2.ZERO
-	
-	if distance_to_player > preferred_distance + 5.0:
-		# Too far from player, move closer
-		target_velocity = direction_to_player * haunt_speed
-	elif distance_to_player < preferred_distance - 5.0:
-		# Too close to player, move away
-		target_velocity = -direction_to_player * haunt_speed * 0.5
-	else:
-		# At preferred distance, maintain position with slight drift
-		target_velocity = Vector2.ZERO
-	
-	# Apply acceleration for smooth movement
-	current_velocity = current_velocity.lerp(target_velocity, acceleration * delta / haunt_speed)
+	"""Hover near the player like a nuisance: close enough to pester, but it eases off instead of
+	ramming. The ghost aims for its own spot on a ring of radius preferred_distance around the
+	player (hover_angle), slowing over standoff_slow_range as it arrives. Other ghosts push it
+	away so they don't stack."""
+	hover_angle = wrapf(hover_angle + hover_drift_dir * hover_angle_drift * delta, 0.0, TAU)
+
+	var hover_point = player.global_position + Vector2.from_angle(hover_angle) * preferred_distance
+	var to_hover = hover_point - global_position
+	var speed_scale = clampf(to_hover.length() / standoff_slow_range, 0.0, 1.0)
+	var target_velocity = to_hover.normalized() * haunt_speed * speed_scale
+
+	# Sitting on top of the player: drift back out gently
+	var to_player = player.global_position - global_position
+	if to_player.length() < preferred_distance - standoff_deadzone:
+		target_velocity = -to_player.normalized() * haunt_speed * 0.3
+
+	target_velocity += _separation_push()
+	current_velocity = current_velocity.lerp(target_velocity, haunt_smoothing * delta)
+
+
+## Velocity pushing this ghost away from other ghosts that are too close (stronger when closer).
+func _separation_push() -> Vector2:
+	var push = Vector2.ZERO
+	for other in get_tree().get_nodes_in_group("ghost_covern"):
+		if other == self or not is_instance_valid(other) or other.is_dying:
+			continue
+		var offset: Vector2 = global_position - other.global_position
+		var dist = offset.length()
+		if dist >= separation_radius:
+			continue
+		# Exactly stacked: pick a random direction so they can still part ways
+		var away = offset / dist if dist > 0.001 else Vector2.from_angle(randf_range(0.0, TAU))
+		push += away * (1.0 - dist / separation_radius)
+	return push * separation_strength
 
 
 # ==============================================================================
-# STATE: INTANGIBLE
+# INTANGIBILITY (overlay; the ghost keeps moving while phased out)
 # ==============================================================================
 
-func update_intangible_state(delta: float) -> void:
-	if not enable_intangibility:
+func _update_intangibility(delta: float) -> void:
+	if not enable_intangibility or current_state == State.DEAD:
 		return
-	
-	intangible_state_timer += delta
-	
-	# Apply intangible visual effect
-	if sprite:
-		sprite.modulate = Color(1, 1, 1, intangible_fade_amount)
-	
-	# Disable hurtbox to prevent damage
+
+	if is_intangible:
+		intangible_state_timer += delta
+		if intangible_state_timer >= intangible_duration:
+			exit_intangible_state()
+	else:
+		intangible_cooldown_timer -= delta
+		if intangible_cooldown_timer <= 0.0:
+			enter_intangible_state()
+
+
+func enter_intangible_state() -> void:
+	if current_state == State.DEAD or is_dying or not enable_intangibility or is_intangible:
+		return
+
+	is_intangible = true
+	intangible_state_timer = 0.0
+	_set_phased(true)
+
+
+func exit_intangible_state() -> void:
+	if not is_intangible:
+		return
+
+	is_intangible = false
+	intangible_state_timer = 0.0
+	intangible_cooldown_timer = intangible_cooldown
+	_set_phased(false)
+
+
+## Toggles every way the ghost can touch the world. Hurtbox `monitorable` is the important one:
+## projectiles detect the hurtbox by overlapping it, which depends on monitorable, not monitoring.
+## The ghost's world mask is left alone so it can't phase itself into a wall.
+func _set_phased(phased: bool) -> void:
+	set_deferred("collision_layer", 0 if phased else _body_layer)
 	if hurtbox:
-		hurtbox.monitoring = false
-	
-	# Disable contact damage during intangibility
+		hurtbox.set_deferred("monitorable", not phased)
+		hurtbox.set_deferred("monitoring", not phased)
 	if contact_damage:
-		contact_damage.monitoring = false
-	
-	# Check if intangible duration has expired
-	if intangible_state_timer >= intangible_duration:
-		exit_intangible_state()
+		contact_damage.set_deferred("monitoring", not phased)
+		contact_damage.set_deferred("monitorable", not phased)
 
 
 # ==============================================================================
@@ -284,104 +340,55 @@ func enter_wandering_state() -> void:
 	"""Transition to wandering state."""
 	if current_state == State.DEAD:
 		return
-	
+
 	current_state = State.WANDERING
 	current_velocity = Vector2.ZERO
 	choose_wander_target()
 	wander_timer = 0.0
-	
-	# Restore visual state if coming from intangible
-	if sprite:
-		sprite.modulate = Color(1, 1, 1, 1)
-	if hurtbox:
-		hurtbox.monitoring = true
 
 
 func enter_haunting_state() -> void:
 	"""Transition to haunting state."""
 	if current_state == State.DEAD:
 		return
-	
+
 	current_state = State.HAUNTING
-	current_velocity = Vector2.ZERO
-
-
-func enter_intangible_state() -> void:
-	"""Transition to intangible state."""
-	if current_state == State.DEAD or not enable_intangibility:
-		return
-	
-	if is_intangible:
-		return  # Already intangible
-	
-	current_state = State.INTANGIBLE
-	is_intangible = true
-	intangible_state_timer = 0.0
-	intangible_cooldown_timer = 0.0
-	
-	# Disable contact damage during intangibility
-	if contact_damage:
-		contact_damage.monitoring = false
-
-
-func exit_intangible_state() -> void:
-	"""Exit intangible state and return to previous behavior."""
-	is_intangible = false
-	intangible_state_timer = 0.0
-	intangible_cooldown_timer = intangible_cooldown
-	
-	# Restore visual state
-	if sprite:
-		sprite.modulate = Color(1, 1, 1, 1)
-	
-	# Re-enable hurtbox and contact damage
-	if hurtbox:
-		hurtbox.monitoring = true
-	if contact_damage:
-		contact_damage.monitoring = true
-	
-	# Return to haunting if player is nearby, otherwise wander
-	if enable_haunting and enable_detection and player_detected and player:
-		current_state = State.HAUNTING
-	elif enable_wandering:
-		enter_wandering_state()
-	else:
-		current_state = State.WANDERING
+	# Velocity is kept so the switch from wandering to chasing is smooth
 
 
 # ==============================================================================
 # PLAYER DETECTION
 # ==============================================================================
+# Distance-based (like Atomic) instead of relying on the DetectionArea and node names.
 
 func check_player_detection() -> void:
-	"""Check if player is within detection radius."""
+	"""Look the player up through the 'player' group and flag them once within detection_radius."""
 	if not player or not is_instance_valid(player):
+		player = get_tree().get_first_node_in_group("player")
+	if not player:
 		return
-	
-	var distance_to_player = global_position.distance_to(player.global_position)
-	if distance_to_player <= detection_radius and not player_detected:
+
+	if global_position.distance_to(player.global_position) <= detection_radius:
 		player_detected = true
 
 
-func _on_detection_area_entered(area: Area2D) -> void:
-	"""Handle player entering detection area."""
-	if not enable_detection:
+# ==============================================================================
+# VISUALS
+# ==============================================================================
+
+func _update_visuals(delta: float) -> void:
+	if not sprite:
 		return
-	
-	# Check if the detected area belongs to the player
-	if area.is_in_group("player") or area.get_parent().name == "Player" or area.name == "Hitbox":
-		player = area.get_parent() if area.get_parent() else area
-		player_detected = true
 
+	if flash_timer > 0.0:
+		flash_timer -= delta
 
-func _on_detection_area_exited(area: Area2D) -> void:
-	"""Handle player exiting detection area."""
-	# Only clear player reference if no longer close
-	if player and (area == player or area.get_parent() == player):
-		var distance_to_player = global_position.distance_to(player.global_position)
-		if distance_to_player > disengage_radius:
-			player = null
-			player_detected = false
+	var color := FLASH_COLOR if flash_timer > 0.0 else Color.WHITE
+	if is_intangible:
+		color.a = intangible_fade_amount
+	if is_dying:
+		color.a = lerpf(1.0, 0.0, clampf(death_timer / death_duration, 0.0, 1.0))
+	sprite.modulate = color
 
 
 # ==============================================================================
@@ -390,10 +397,10 @@ func _on_detection_area_exited(area: Area2D) -> void:
 
 func take_damage(damage: int, source = null) -> void:
 	"""Handle incoming damage."""
-	# Cannot take damage while intangible or dead
+	# Backstop: the hurtbox is already unreachable while intangible
 	if is_intangible or current_state == State.DEAD:
 		return
-	
+
 	health.take_damage(damage, source)
 
 
@@ -401,50 +408,28 @@ func _on_health_damaged(amount: int, new_health: int) -> void:
 	"""Handle damage signal from HealthComponent."""
 	if debug_enabled:
 		print_debug("[GhostCovern] Took damage: %d | Health: %d/%d" % [amount, new_health, max_health])
-	
-	# Visual feedback: sprite flash
-	if sprite:
-		sprite.modulate = Color(1, 0.5, 0.5, 1)  # Red tint
-		await get_tree().create_timer(0.1).timeout
-		if sprite and current_state != State.INTANGIBLE:
-			sprite.modulate = Color(1, 1, 1, 1)
+
+	flash_timer = FLASH_DURATION
 
 
 func _on_health_died() -> void:
 	"""Handle death signal from HealthComponent."""
+	DropManager.try_drop(self, drop_table)
 	if debug_enabled:
 		print_debug("[GhostCovern] Ghost defeated!")
 	is_dying = true
+	is_intangible = false
 	current_state = State.DEAD
 	current_velocity = Vector2.ZERO
 	death_timer = 0.0
-	
+
 	# Disable collisions immediately
 	for child in get_children():
 		if child is CollisionShape2D:
 			child.set_deferred("disabled", true)
 		elif child is Area2D:
 			child.set_deferred("monitoring", false)
-
-
-# ==============================================================================
-# INTANGIBILITY TIMER (Periodically triggers intangibility)
-# ==============================================================================
-
-func _process(delta: float) -> void:
-	"""Update intangibility cooldown timer."""
-	if not enable_intangibility:
-		return
-	
-	if current_state == State.DEAD:
-		return
-	
-	if is_intangible:
-		return  # Currently intangible, don't start another cycle
-	
-	intangible_cooldown_timer -= delta
-	if intangible_cooldown_timer <= 0.0:
-		enter_intangible_state()
+			child.set_deferred("monitorable", false)
 
 
 # ==============================================================================
@@ -453,13 +438,13 @@ func _process(delta: float) -> void:
 
 func get_state_name() -> String:
 	"""Return the current state as a string for debugging."""
+	if is_intangible:
+		return "INTANGIBLE"
 	match current_state:
 		State.WANDERING:
 			return "WANDERING"
 		State.HAUNTING:
 			return "HAUNTING"
-		State.INTANGIBLE:
-			return "INTANGIBLE"
 		State.DEAD:
 			return "DEAD"
 	return "UNKNOWN"

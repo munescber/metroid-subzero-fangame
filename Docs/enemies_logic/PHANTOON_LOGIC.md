@@ -3,19 +3,23 @@
 Script: `Scripts/Enemies/phantoon.gd`
 Scene: `Scenes/Enemies/phantoon.tscn`
 
-Phantoon is an orbiting boss that alternates between circling an arena center point, dashing to a new position, and firing one of two attacks. It has two health-based phases and a periodic invulnerability window.
+Phantoon is an orbiting boss that alternates between circling an arena center point, dashing to a new position, and firing one of two attacks. It has two health-based phases and a periodic defensive intangibility window.
+
+The eye is the weak zone: the `Hurtbox` is a deliberately small 5px circle, so the player has to aim at it. `ContactDamage` still covers the whole body.
 
 ## States (`BossState` enum)
 
 | State | Purpose |
 |---|---|
 | `ORBIT` | Circles `arena_center` at `orbit_radius`/`orbit_speed`. Default/resting state. |
-| `PAUSE` | Stops orbiting briefly before dashing (or before attacking, if dash is disabled). |
-| `DASH` | Interpolates position to a random point on the orbit circle. |
+| `PAUSE` | Stops orbiting briefly before dashing (or before attacking, if dash is disabled). The dash target is shown by a marker. |
+| `DASH` | Moves at constant `dash_speed` to the point on the orbit circle directly opposite the boss. |
+| `ATTACK_WINDUP` | Holds still and glows for `attack_telegraph_duration`, then spawns the pending attack. |
 | `ATTACK_BURST` | Radial burst attack is in-flight; boss holds position. |
 | `ATTACK_BOUNCE` | Bouncing fireball attack is in-flight; boss holds position. |
-| `INTANGIBLE` | Boss is translucent, invulnerable, and its Hurtbox is disabled. |
 | `DEAD` | Boss is fading out and about to `queue_free()`. |
+
+Intangibility is **not a state**. It is an overlay flag (`is_intangible`) that only ever happens during `ORBIT`. See [Intangibility](#intangibility).
 
 ## State machine flow
 
@@ -24,30 +28,25 @@ stateDiagram-v2
     [*] --> ORBIT
     ORBIT --> PAUSE: attack_timer >= orbit_duration
     PAUSE --> DASH: enable_dash == true
-    PAUSE --> ATTACK_BURST: enable_dash == false (attack from current spot)
-    PAUSE --> ATTACK_BOUNCE: enable_dash == false (attack from current spot)
-    DASH --> ATTACK_BURST: dash complete
-    DASH --> ATTACK_BOUNCE: dash complete
+    PAUSE --> ATTACK_WINDUP: enable_dash == false (attack from current spot)
+    DASH --> ATTACK_WINDUP: dash complete
+    ATTACK_WINDUP --> ATTACK_BURST: after attack_telegraph_duration (burst is next in sequence)
+    ATTACK_WINDUP --> ATTACK_BOUNCE: after attack_telegraph_duration (bounce is next in sequence)
     ATTACK_BURST --> ORBIT: after 1.0s
     ATTACK_BOUNCE --> ORBIT: after 2.0s
-    ORBIT --> INTANGIBLE: intangible_timer >= intangible_interval
-    PAUSE --> INTANGIBLE: intangible_timer >= intangible_interval
-    DASH --> INTANGIBLE: intangible_timer >= intangible_interval
-    ATTACK_BURST --> INTANGIBLE: intangible_timer >= intangible_interval
-    ATTACK_BOUNCE --> INTANGIBLE: intangible_timer >= intangible_interval
-    INTANGIBLE --> ORBIT: after intangible_duration
     ORBIT --> DEAD: health <= 0
     PAUSE --> DEAD: health <= 0
     DASH --> DEAD: health <= 0
+    ATTACK_WINDUP --> DEAD: health <= 0
     ATTACK_BURST --> DEAD: health <= 0
     ATTACK_BOUNCE --> DEAD: health <= 0
-    INTANGIBLE --> DEAD: health <= 0
     DEAD --> [*]
 ```
 
 Notes:
-- The intangibility check runs every physics frame regardless of current state (except while already `DEAD` or `INTANGIBLE`), so it can interrupt `ORBIT`, `PAUSE`, `DASH`, or either attack state the instant its timer elapses. It does **not** interrupt an attack visually (the attack was already spawned), it just forces the next state to `INTANGIBLE` once the timer condition is met and the current per-state update runs.
-- Death (`take_damage` → `HealthComponent` → `died` signal) can happen from any state and immediately forces `DEAD`, disabling all `CollisionShape2D`/`Area2D` children.
+- Intangibility is an overlay on `ORBIT` and does not appear in the diagram. It never interrupts a dash or an attack.
+- Death (`take_damage` → `HealthComponent` → `died` signal) can happen from any state and immediately forces `DEAD`, disabling all `CollisionShape2D`/`CollisionPolygon2D`/`Area2D` children.
+- On spawn, `arena_center` is set so the boss's starting position is already on the orbit ring (orbit angle 0). The first orbit frame no longer teleports it.
 
 ## Transition timings (defaults)
 
@@ -55,52 +54,105 @@ Notes:
 |---|---|
 | `ORBIT` → `PAUSE` | `orbit_duration` (3.0s, phase 1) |
 | `PAUSE` → `DASH` (or directly to attack if `enable_dash = false`) | `pause_duration` (1.0s, phase 1) |
-| `DASH` → attack state | `dash_duration` (0.5s) |
+| `DASH` → `ATTACK_WINDUP` | arrival at the target at `dash_speed` (200 px/s); `dash_duration` (0.5s) is a safety cap |
+| `ATTACK_WINDUP` → attack state | `attack_telegraph_duration` (0.4s) |
 | `ATTACK_BURST` → `ORBIT` | fixed 1.0s |
 | `ATTACK_BOUNCE` → `ORBIT` | fixed 2.0s |
-| any → `INTANGIBLE` | `intangible_interval` (15.0s, phase 1) |
-| `INTANGIBLE` → `ORBIT` | `intangible_duration` (3.0s) |
 
-In Phase 2 (`enter_phase_2()`), `orbit_speed` is multiplied by 1.5, `pause_duration` by 0.75, and `orbit_duration` by 0.8 — the boss orbits faster, pauses for less time, and starts its attack cycle sooner. `intangible_interval`/`intangible_duration` are unaffected by phase.
+In Phase 2 (`enter_phase_2()`), `orbit_speed` is multiplied by 1.5, `pause_duration` by 0.75, `orbit_duration` by 0.8 and `intangible_interval` by 0.75. The boss orbits faster, pauses for less time, starts its attack cycle sooner and phases out more often. `intangible_duration` is unaffected by phase.
 
-## Attack selection probability (`perform_attack_selection()`)
+## Intangibility
 
-Every time the boss reaches the end of a dash (or skips the dash, if disabled), it picks **one** attack:
+A defensive behavior: the boss phases out and keeps orbiting, but never attacks while doing so.
 
-```gdscript
-var bounce_chance = 0.3 if phase == 1 else 0.5
-var do_bounce = enable_bounce_attack and (not enable_burst_attack or randf() < bounce_chance)
-```
+- **Scheduling:** `intangible_timer` only counts tangible time. Once it reaches `intangible_interval` (15s) **and** the boss is in `ORBIT`, it starts. If the boss is mid-pause, dash or attack, it waits, so it never cuts an attack off.
+- **Warning:** the sprite flickers for `intangible_warning_duration` (0.5s) before phasing out.
+- **Attack hold:** while flickering or intangible, the `ORBIT` → `PAUSE` timer is frozen. The boss only orbits.
+- **Phased out (`is_intangible`):** lasts `intangible_duration` (3s). `_set_phased(true)` (deferred) does the following:
+  - `Hurtbox.monitorable` and `monitoring` are switched off. `monitorable` is the important one: projectiles find the hurtbox by overlapping it, so bullets and missiles pass straight through instead of being consumed. Missile explosion queries skip it too.
+  - `ContactDamage.monitoring` and `monitorable` are switched off, so the player takes no contact damage and passes through.
+  - `collision_layer` is set to 0.
+  - The sprite alpha becomes `intangible_fade_amount` (0.5).
+- **Exit:** `_set_phased(false)` restores everything, and `intangible_timer` resets to 0, so the next phase-out is a full interval away.
+- `take_damage()` also returns early while intangible, as a backstop.
 
-- **Phase 1:** ~30% chance of `ATTACK_BOUNCE`, ~70% chance of `ATTACK_BURST`.
-- **Phase 2:** ~50% / 50% split.
-- If only one attack toggle is enabled, that attack is always used (100%), regardless of `bounce_chance`.
+## Dash
+
+- When the `ORBIT` → `PAUSE` transition happens, `dash_target` is set to `_opposite_orbit_point()`: `arena_center - (global_position - arena_center)`, the point on the ring directly across from the boss.
+- The dash is always the same length (2 × `orbit_radius`, 80px by default), so it takes about 0.4s at `dash_speed` 200 and always passes through the arena center.
+- **Dash marker:** from the start of the pause until the boss arrives, `_draw()` shows a ring at the target and a faint line along the path. It's redrawn every frame while visible. Turn it off with the `show_dash_marker` export (default on).
+- The orbit direction reverses at the moment the dash starts.
+
+## Attack sequence (`_next_attack()`)
+
+Attacks are a fixed sequence, not random. Every time the boss reaches the end of a dash (or skips the dash, if disabled), `perform_attack_selection()` takes the next attack and goes to `ATTACK_WINDUP`:
+
+- **Phase 1:** burst, burst, bounce, repeat (`PHASE_1_ATTACK_SEQUENCE`).
+- **Phase 2:** burst, bounce, repeat (`PHASE_2_ATTACK_SEQUENCE`). `attack_index` resets to 0 when phase 2 starts.
+- If only one attack toggle is enabled, that attack is always used.
 - If both `enable_burst_attack` and `enable_bounce_attack` are `false`, no attack is spawned and the boss returns straight to `ORBIT`.
 
-This is why the bouncing fireballs feel rare in Phase 1: they only have a **30% chance** of being picked each attack cycle, versus 70% for the burst. Since each orbit → pause → dash → attack cycle takes roughly `orbit_duration + pause_duration + dash_duration` (~4.5s in phase 1) before an attack is even chosen, you'll statistically see a bounce attack roughly once every ~3-4 attack cycles (~15s) in Phase 1. To make bounce attacks appear more often for testing, either temporarily raise `bounce_chance` in code, or set `enable_burst_attack = false` to force 100% bounce attacks.
+### Windup telegraph
+
+In `ATTACK_WINDUP` the boss holds still for `attack_telegraph_duration` (0.4s) while the sprite glows more and more in the same warm yellow (`WINDUP_COLOR`) for both attacks. The attack spawns when the windup ends. The damage flash and the phase-2 flash still draw over it.
 
 ## Attacks
 
 ### Radial Burst (`spawn_burst_attack`)
-- Spawns `burst_projectile_count` (default 6) `RadialProjectile` instances in an evenly spaced ring (`TAU / burst_projectile_count` apart), offset by `phase_1_burst_rotation`/`phase_2_burst_rotation`.
+- **Phase 1:** `burst_projectile_count` (6) `RadialProjectile` instances in an evenly spaced ring, offset by `phase_1_burst_rotation` (0, so the first one points right).
+- **Phase 2:** `phase_2_burst_count` (8) projectiles, one every 45°. `phase_2_burst_rotation` is -90° (`-PI / 2`), so the first projectile points straight up (0°) and the rest follow every 45° around the ring.
+- The angle step is `TAU / count`, so the ring stays even if you change the count.
 - Each projectile spawns at `global_position + direction * burst_spawn_offset` (24px outside the boss's own body by default) so it doesn't visually spawn inside the boss sprite.
 - Speed is `phase_1_burst_speed` (100) or `phase_2_burst_speed` (150) depending on phase.
 - Projectiles fly in a straight line and self-destruct (fade) on hitting a wall, the player, or after their lifetime expires.
+- The player can shoot them down. A projectile shot down this way has a chance to drop a pickup (see [Projectile drops](#projectile-drops)).
 
 ### Bouncing Fireballs (`spawn_bounce_attack`)
 - Spawns `phase_1_bounce_count` (4) or `phase_2_bounce_count` (6) `BouncingFireball` instances in a horizontal line 40px below the boss, evenly spaced 20px apart and centered under the boss.
 - Each fireball falls under `bounce_gravity` and bounces off floors up to `MAX_BOUNCES` (5) times, losing speed each bounce, before self-destructing.
+- Fireballs can also be shot down for a drop.
+
+### Projectile drops
+
+Both `RadialProjectile` and `BouncingFireball` have a `drop_table` export and a `_shot_down()` method, called when the player's shot hits their `Hurtbox`.
+
+- On the first hit only (`is_fading` guard), `_shot_down(source)` fades the projectile. It calls `DropManager.try_drop(self, drop_table)` **only if `source` is in the `player` group**. The `source` is whoever fired the shot: bullets, charge beams and missile explosions all pass the player.
+- A hit from anything else still fades the projectile but never drops. This covers any non-player damage.
+
+### Projectiles ignore each other
+
+`BouncingFireball` and `RadialProjectile` each have a `Hitbox` and a `Hurtbox` on the shared hitbox and hurtbox layers. Without a filter, one projectile's hitbox counts a neighbouring projectile's hurtbox as an enemy, and makes it fade. Fireballs spawn only 20px apart with 12px-wide hitboxes, so they touched easily while falling and faded before reaching the floor.
+
+- Both scripts now skip any overlapping area whose parent is a `BouncingFireball` or a `RadialProjectile`. A burst crossing the fireballs no longer cancels either.
+- Fireballs also store `shooter` (passed as the third argument of `setup(gravity, speed, source)`) and skip the boss that fired them, so a fireball can't damage its own boss.
+- Player shots hit a projectile's `Hurtbox` through the player's own hitbox, so shooting projectiles down is unaffected.
+- Projectiles that fade on their own never drop anything: a wall hit, a player hit, max bounces or the lifetime running out.
+- If `drop_table` is empty, `_ready` creates a default `DropTable` with `drop_chance = DEFAULT_DROP_CHANCE` (0.2). That's lower than the enemy default (0.7) since up to 6 projectiles spawn at once.
+- Health vs missile weights are the `DropTable` defaults. Missile refills only drop once the player has missiles unlocked, as for other enemies.
 
 ## Phases
 
-- **Phase 1:** default values, `bounce_chance = 0.3`.
-- **Phase 2:** triggered once when `health.current_health <= max_health / 2`. Increases orbit speed and attack frequency, and raises `bounce_chance` to `0.5`. Triggers a brief white flash on the sprite as a visual cue. Phase 2 only triggers once (`phase_2_triggered` guard).
+- **Phase 1:** default values, attack sequence burst, burst, bounce.
+- **Phase 2:** triggered once when `health.current_health <= max_health / 2`. Increases orbit speed and attack frequency, and switches to the burst, bounce sequence. Triggers a brief white flash on the sprite as a visual cue. Phase 2 only triggers once (`phase_2_triggered` guard), and never on the hit that kills the boss.
+
+## Visuals
+
+`_update_visuals(delta)` computes the sprite `modulate` once per frame, so effects can't overwrite each other:
+
+1. White by default, or the phase-2 flash (`PHASE_FLASH_COLOR`, 0.2s), or the red damage tint while `damage_flash_timer` is running (0.12s).
+2. Alpha is `intangible_fade_amount` while intangible, or flickers during the warning.
+3. If dying, alpha fades from 1 to 0 over `death_duration`.
 
 ## Damage & Death
 
-- `take_damage()` is ignored while `INTANGIBLE` or `DEAD`.
-- Taking damage flashes the sprite red briefly (`damage_flash_timer`, 0.12s) and checks for the Phase 2 transition.
-- On death (`HealthComponent.died` signal), the boss disables all its `CollisionShape2D`/`Area2D` children, fades its sprite out over `death_duration` (0.5s), then `queue_free()`s.
+- `take_damage()` is ignored while intangible or `DEAD`.
+- Taking damage tints the sprite red briefly (`damage_flash_timer`, 0.12s) and checks for the Phase 2 transition.
+- **Death drops are guaranteed.** On death, `DropManager.drop_guaranteed()` spawns `death_health_drops` (10) health pickups and `death_missile_drops` (10) missile refills. There is no roll and no missile-unlock check.
+  - They scatter horizontally within `death_drop_spread` (48px) of the boss, with a small random vertical offset.
+  - They stay for `death_drop_lifetime` (20s) instead of the default 8s, since there are 20 of them to collect.
+  - The old `drop_table` export no longer exists on the boss.
+  - Missile refills are ignored by the player while missiles are locked. They are still spawned, and despawn on their timer.
+- On death (`HealthComponent.died` signal), the boss clears intangibility and disables all its `CollisionShape2D`/`CollisionPolygon2D` children. `Area2D` children stop monitoring and become non-monitorable, so projectiles stop being consumed. It then fades its sprite out over `death_duration` (0.5s) and `queue_free()`s.
 
 ## Feature toggles (for testing)
 
@@ -110,3 +162,23 @@ All default to `true`, meant to be disabled individually for isolated testing:
 - `enable_burst_attack` — if `false`, only bounce attacks are ever chosen.
 - `enable_bounce_attack` — if `false`, only burst attacks are ever chosen.
 - `enable_intangibility` — if `false`, the boss never becomes intangible.
+
+## Other exports
+
+| Export | Default |
+|---|---|
+| `phase_2_burst_count` | 8 |
+| `phase_2_burst_rotation` | -PI/2 (straight up) |
+| `death_health_drops` / `death_missile_drops` | 10 / 10 |
+| `death_drop_spread` / `death_drop_lifetime` | 48 / 20 |
+| `attack_telegraph_duration` | 0.4 |
+| `show_dash_marker` | true |
+
+## Intangibility exports
+
+| Export | Default |
+|---|---|
+| `intangible_interval` | 15.0 |
+| `intangible_duration` | 3.0 |
+| `intangible_warning_duration` | 0.5 |
+| `intangible_fade_amount` | 0.5 |

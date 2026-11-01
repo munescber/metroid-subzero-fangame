@@ -1041,11 +1041,8 @@ position = Vector2(243, -86)
 
 [node name="Atomic" parent="Enemies" unique_id=1232447307 instance=ExtResource("6_7onpy")]
 position = Vector2(750, -112)
-enable_attacks = false
 float_speed = 20.0
 seek_speed = 10.0
-dash_speed = 50.0
-dash_cooldown = 3.0
 electric_field_interval = 5.0
 
 [node name="Gates" type="Node2D" parent="." unique_id=661177218]

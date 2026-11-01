@@ -186,7 +186,11 @@ func _on_health_damaged(amount: int, new_health: int) -> void:
 	if timer:
 		timer.start(0.12)
 
+## Optional drop override; empty uses the default DropManager table.
+@export var drop_table: DropTable
+
 func _on_health_died() -> void:
+	DropManager.try_drop(self, drop_table)
 	if debug_enabled:
 		print_debug("[Rhinobug] died")
 	# play death effect then remove

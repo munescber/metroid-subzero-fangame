@@ -10,6 +10,10 @@ const MAX_BOUNCES = 5
 
 @export var damage: int = 1
 @export var max_speed: float = 200.0
+## Drop override for when the player shoots this fireball down. Empty uses a table with
+## DEFAULT_DROP_CHANCE (lower than the enemy default, since several fireballs spawn at once).
+@export var drop_table: DropTable
+const DEFAULT_DROP_CHANCE := 0.2
 
 var gravity: float = 300.0  # Default gravity - will be overridden by setup()
 var initial_speed: float = 30.0  # Initial horizontal speed
@@ -17,6 +21,7 @@ var horizontal_velocity: float = 0.0
 var bounce_count: int = 0
 var life_timer: float = LIFETIME
 var has_hit_player: bool = false
+var shooter: Node = null  # The boss that fired this; its hurtbox is never hit by its own fireballs
 var spawn_grace_period: float = 0.15  # Don't collide for first 0.15 seconds after spawn
 
 # Fade animation
@@ -31,6 +36,10 @@ var fade_duration: float = 0.3
 
 
 func _ready() -> void:
+	if drop_table == null:
+		drop_table = DropTable.new()
+		drop_table.drop_chance = DEFAULT_DROP_CHANCE
+
 	if sprite:
 		sprite.play("idle")
 	
@@ -109,7 +118,8 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 
 
-func setup(gravity_val: float, speed_val: float) -> void:
+func setup(gravity_val: float, speed_val: float, source: Node = null) -> void:
+	shooter = source
 	gravity = gravity_val
 	initial_speed = speed_val
 	horizontal_velocity = randf_range(-initial_speed, initial_speed)
@@ -129,6 +139,11 @@ func _on_area_entered(area: Area2D) -> void:
 	
 	# Check if hit the player
 	var parent = area.get_parent()
+
+	# Boss hazards never interact with each other or with the boss that fired them. Without this a
+	# fireball's hitbox treats a neighbouring fireball's hurtbox as an enemy and makes it fade.
+	if parent is BouncingFireball or parent is RadialProjectile or parent == shooter:
+		return
 	var is_player = (parent and (parent.name == "Player" or 
 							parent.name == "player_rundas" or
 							parent.is_in_group("player") or
@@ -151,13 +166,24 @@ func _on_area_entered(area: Area2D) -> void:
 		# Don't destroy immediately - fireball continues bouncing
 
 
-func receive_hit(_damage_amount: int, _source = null) -> void:
+func receive_hit(_damage_amount: int, source = null) -> void:
 	"""Called when hit by a player bullet's hitbox."""
-	initiate_fade()
+	_shot_down(source)
 
 
-func take_damage(_damage_amount: int, _source = null) -> void:
+func take_damage(_damage_amount: int, source = null) -> void:
 	"""Called by our own Hurtbox when hit by a player bullet."""
+	_shot_down(source)
+
+
+## Shot down: fades, and drops a pickup (rolled) only if the shot came from the player. Hits from
+## other enemies' projectiles still fade it but never drop, and neither do fireballs that fade on
+## their own (hit the player, max bounces, wall). Only the first hit counts.
+func _shot_down(source = null) -> void:
+	if is_fading:
+		return
+	if source is Node and source.is_in_group("player"):
+		DropManager.try_drop(self, drop_table)
 	initiate_fade()
 
 

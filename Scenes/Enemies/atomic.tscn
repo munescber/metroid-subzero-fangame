@@ -112,6 +112,8 @@ radius = 8.0
 
 [node name="Atomic" type="CharacterBody2D" unique_id=1232447307]
 script = ExtResource("8_script")
+electric_field_duration = 1.0
+electric_field_damage = 10
 
 [node name="Visuals" type="Node2D" parent="." unique_id=-1038779644]
 

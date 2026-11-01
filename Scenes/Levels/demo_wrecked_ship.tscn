@@ -9,7 +9,7 @@
 [ext_resource type="PackedScene" uid="uid://dri1mvk6spx6b" path="res://Scenes/Enemies/rhinobug.tscn" id="7_pwn84"]
 [ext_resource type="PackedScene" uid="uid://dh3rhndrlhykj" path="res://Scenes/Enemies/atomic.tscn" id="8_g8si4"]
 [ext_resource type="PackedScene" path="res://Scenes/Environment/rising_gate.tscn" id="11_1s1rn"]
-[ext_resource type="PackedScene" uid="uid://ce483xgt42bn4" path="res://Scenes/Environment/missile_pickup.tscn" id="11_dquj6"]
+[ext_resource type="PackedScene" uid="uid://ce483xgt42bn4" path="res://Scenes/Pickups/missile_expansion.tscn" id="11_dquj6"]
 [ext_resource type="PackedScene" uid="uid://dt3nv6spgohf5" path="res://Scenes/Environment/room_gate.tscn" id="12_u8axt"]
 [ext_resource type="PackedScene" uid="uid://cw7bfx73i6fak" path="res://Scenes/Enemies/ghost_covern.tscn" id="13_luw1r"]
 [ext_resource type="PackedScene" uid="uid://bp1jydra2bt8k" path="res://Scenes/Environment/BreakableTile.tscn" id="13_uwhbo"]
@@ -1265,13 +1265,13 @@ texture = SubResource("AtlasTexture_1v1i6")
 position = Vector2(119, 106)
 texture = SubResource("AtlasTexture_xybmv")
 
-[node name="MissilePickup" parent="." unique_id=766779209 instance=ExtResource("11_dquj6")]
+[node name="MissileExpansion" parent="." unique_id=766779209 instance=ExtResource("11_dquj6")]
 position = Vector2(137, 555)
 
-[node name="MissilePickup2" parent="." unique_id=1865774495 instance=ExtResource("11_dquj6")]
+[node name="MissileExpansion2" parent="." unique_id=1865774495 instance=ExtResource("11_dquj6")]
 position = Vector2(553, 73)
 
-[node name="MissilePickup3" parent="." unique_id=1520098404 instance=ExtResource("11_dquj6")]
+[node name="MissileExpansion3" parent="." unique_id=1520098404 instance=ExtResource("11_dquj6")]
 position = Vector2(-328, 152)
 
 [node name="CRTFilter" parent="." unique_id=2089822235 instance=ExtResource("crt_filter")]

@@ -113,7 +113,7 @@ var health_comp: HealthComponent = null
 		if newly_unlocked:
 			missiles_acquired.emit()
 ## Maximum missile ammo the player can carry (raise with increase_missile_capacity).
-@export_range(0, 9999, 1, "or_greater") var missile_max_ammo: int = 50:
+@export_range(0, 9999, 1, "or_greater") var missile_max_ammo: int = 0:
 	set(value):
 		missile_max_ammo = maxi(value, 0)
 		missiles_changed.emit(missile_ammo, missile_max_ammo)
@@ -122,8 +122,6 @@ var health_comp: HealthComponent = null
 	set(value):
 		missile_ammo = maxi(value, 0)
 		missiles_changed.emit(missile_ammo, missile_max_ammo)
-## Ammo granted by each missile pickup.
-@export_range(1, 999, 1, "or_greater") var missile_pickup_amount: int = 5
 
 # Damage / invulnerability
 @export var invulnerability_time: float = 0.8
@@ -203,6 +201,8 @@ func _update_aim_press_order() -> void:
 # ==================================================
 
 func _ready():
+	# Registered in code (not saved in the scene) so the group survives scene re-saves.
+	add_to_group("player")
 	sprite.play("idle")
 	sprite.animation_finished.connect(_on_sprite_animation_finished)
 	_update_muzzle_position()
@@ -363,13 +363,14 @@ func _update_charge_visual() -> void:
 		charge_effect.modulate = Color(1, 1, 1, lerpf(0.3, 0.8, ratio) * (0.8 + 0.2 * pulse))
 
 
-## Called by MissilePickup.
-func collect_missiles() -> void:
+## Called by MissileExpansion. Unlocks missiles if needed, then raises capacity
+## and ammo by `amount` (existing ammo is kept).
+func collect_missile_expansion(amount: int) -> void:
 	if not missiles_unlocked:
 		missiles_unlocked = true
 		print("Missile enabled")
-	missile_ammo = mini(missile_ammo + missile_pickup_amount, maxi(missile_max_ammo, missile_ammo))
-	print("Missiles obtained. Count %d/%d" % [missile_ammo, missile_max_ammo])
+	increase_missile_capacity(amount)
+	print("Missile expansion obtained. Count %d/%d" % [missile_ammo, missile_max_ammo])
 
 
 ## Raises missile capacity and, like the classic expansions, grants the same ammo.
@@ -380,9 +381,23 @@ func increase_missile_capacity(amount: int) -> void:
 	missile_ammo += amount
 
 
-func heal(amount: int) -> void:
+## Returns the HP actually restored (0 when full, dead, or amount <= 0).
+func heal(amount: int) -> int:
 	if health_comp:
-		health_comp.heal(amount)
+		return health_comp.heal(amount)
+	return 0
+
+
+## Refills missile ammo up to the current max; never unlocks or raises capacity.
+## Returns the ammo actually restored (0 when locked, full, or amount <= 0).
+func restore_missiles(amount: int) -> int:
+	if not missiles_unlocked or amount <= 0:
+		return 0
+	var restored := mini(amount, missile_max_ammo - missile_ammo)
+	if restored <= 0:
+		return 0
+	missile_ammo += restored
+	return restored
 
 
 ## Raises max health and heals by the same amount (energy-tank style).

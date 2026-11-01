@@ -12,11 +12,19 @@ class_name Phantoon
 @export var enable_bounce_attack: bool = true
 @export var enable_intangibility: bool = true
 
-# Boss states
-enum BossState { ORBIT, PAUSE, DASH, ATTACK_BURST, ATTACK_BOUNCE, INTANGIBLE, DEAD }
+# Boss states. Intangibility is not a state: it is an overlay (is_intangible) on top of ORBIT,
+# so the boss keeps orbiting while phased out and never gets cut off mid-attack.
+enum BossState { ORBIT, PAUSE, DASH, ATTACK_WINDUP, ATTACK_BURST, ATTACK_BOUNCE, DEAD }
 
 # Current state
 var current_state: BossState = BossState.ORBIT
+
+# Attacks run as a fixed, learnable sequence per phase (see _next_attack)
+enum AttackType { BURST, BOUNCE }
+const PHASE_1_ATTACK_SEQUENCE := [AttackType.BURST, AttackType.BURST, AttackType.BOUNCE]
+const PHASE_2_ATTACK_SEQUENCE := [AttackType.BURST, AttackType.BOUNCE]
+var attack_index: int = 0
+var pending_attack: int = AttackType.BURST
 
 # Projectile scenes (lazy loaded)
 var radial_projectile_scene: PackedScene = null
@@ -37,8 +45,10 @@ var phase_2_triggered: bool = false
 # State timers
 var state_timer: float = 0.0
 @export var pause_duration: float = 1.0
-@export var dash_duration: float = 0.5
+@export var dash_duration: float = 0.5  # Safety cap: the dash ends after this even if it hasn't arrived
 @export var dash_speed: float = 200.0
+@export var attack_telegraph_duration: float = 0.4  # Windup glow before an attack spawns
+@export var show_dash_marker: bool = true  # Ring + path line at the dash target
 var dash_target: Vector2 = Vector2.ZERO
 
 # References
@@ -55,23 +65,47 @@ var dash_target: Vector2 = Vector2.ZERO
 var attack_timer: float = 0.0
 @export var orbit_duration: float = 3.0  # How long to orbit before pausing
 
-# Intangible state configuration
-@export var intangible_interval: float = 15.0  # How often boss goes intangible
+# Intangible configuration (defensive: the boss phases out and keeps orbiting, no attacks)
+@export var intangible_interval: float = 15.0  # Tangible time between intangible phases
 @export var intangible_duration: float = 3.0  # How long intangible state lasts
+@export var intangible_warning_duration: float = 0.5  # Flicker before phasing out
+@export var intangible_fade_amount: float = 0.5  # 0.0 = invisible, 1.0 = visible
+var is_intangible: bool = false
 var intangible_timer: float = 0.0
 var intangible_state_timer: float = 0.0
+var intangible_warning_timer: float = 0.0
 
 # Attack configuration (Stage 8 & 9)
-@export var burst_projectile_count: int = 6
+@export var burst_projectile_count: int = 6  # Phase 1 burst size
+@export var phase_2_burst_count: int = 8  # Phase 2 burst size: one every 45 degrees
 @export var burst_spawn_offset: float = 24.0  # Distance from boss center each burst projectile spawns at
 @export var phase_1_burst_speed: float = 100.0
 @export var phase_2_burst_speed: float = 150.0
 @export var phase_1_burst_rotation: float = 0.0
-@export var phase_2_burst_rotation: float = 0.523599  # 30 degrees in radians
+@export var phase_2_burst_rotation: float = -PI / 2.0  # Straight up: the first projectile is at 0 degrees, then every 45
 @export var phase_1_bounce_count: int = 4
 @export var phase_2_bounce_count: int = 6
 @export var bounce_projectile_speed: float = 50.0
 @export var bounce_gravity: float = 300.0
+
+# Death drops: guaranteed, not rolled. They scatter horizontally around the boss.
+@export_category("Death Drops")
+@export var death_health_drops: int = 10
+@export var death_missile_drops: int = 10
+@export var death_drop_spread: float = 48.0  # Max horizontal scatter in pixels
+@export var death_drop_lifetime: float = 20.0  # Seconds the pickups stay (the usual drop time is shorter)
+
+# Visual feedback
+const DAMAGE_FLASH_COLOR := Color(1, 0.5, 0.5, 1)
+const PHASE_FLASH_COLOR := Color(2, 2, 2, 1)
+const PHASE_FLASH_DURATION: float = 0.2
+const WINDUP_COLOR := Color(1.6, 1.2, 0.6, 1)  # Warm yellow glow before any attack
+const DASH_MARKER_COLOR := Color(1, 1, 1, 0.8)
+var phase_flash_timer: float = 0.0
+var _dash_marker_visible: bool = false
+
+# Layer captured at _ready so intangibility can be undone exactly
+var _body_layer: int = 0
 
 # Death state
 var is_dying: bool = false
@@ -80,43 +114,42 @@ var death_duration: float = 0.5  # Time to fade out
 
 
 func _ready() -> void:
+	_body_layer = collision_layer
+
 	# Initialize health
 	health.max_health = max_health
 	health.current_health = max_health
-	
-	# Set arena center to current position
-	arena_center = global_position
-	
+
+	# Orbit angle 0 puts the boss at the right of the ring, so place the ring's center such that
+	# the boss's spawn position is already on it (otherwise the first frame teleports it)
+	orbit_angle = 0.0
+	arena_center = global_position - Vector2(cos(orbit_angle), sin(orbit_angle)) * orbit_radius
+
 	# Connect health signals
 	health.damaged.connect(_on_health_damaged)
 	health.died.connect(_on_health_died)
-	
-	# Connect damage flash timer
-	damage_flash_timer.timeout.connect(_on_damage_flash_timer_timeout)
-	
+
 	# Configure contact damage (hitting the player)
 	if contact_damage and contact_damage.has_method("set"):
 		contact_damage.set("damage", contact_damage_value)
 		contact_damage.set("one_shot", false)  # Continuous damage, not one-shot
 		contact_damage.set("source", self)
-	
+
 	# Start animation
 	if sprite != null:
 		sprite.play("idle")
-	
-	# Initialize orbit angle to current position
-	orbit_angle = 0.0
-	
+
 	# Initialize timers
 	intangible_timer = 0.0
 	intangible_state_timer = 0.0
-	
+	intangible_warning_timer = 0.0
+
 	# Lazy load projectile scenes
 	if radial_projectile_scene == null:
 		radial_projectile_scene = load("res://Scenes/Projectiles/radial_projectile.tscn")
 		if radial_projectile_scene == null:
 			print_debug("[Phantoon] WARNING: Could not load radial_projectile.tscn")
-	
+
 	if bounce_projectile_scene == null:
 		bounce_projectile_scene = load("res://Scenes/Projectiles/bouncing_fireball.tscn")
 		if bounce_projectile_scene == null:
@@ -124,33 +157,26 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	# Handle attack timer (triggers pause/dash cycle)
-	if current_state == BossState.ORBIT:
-		attack_timer += delta
-		if attack_timer >= orbit_duration:
-			# Transition to pause
-			current_state = BossState.PAUSE
-			attack_timer = 0.0
-			state_timer = 0.0
-	
-	# Handle intangible scheduling (all states except dead)
-	if enable_intangibility and current_state != BossState.DEAD:
-		intangible_timer += delta
-		if intangible_timer >= intangible_interval and current_state != BossState.INTANGIBLE:
-			enter_intangible_state()
-	
 	# Handle death animation
 	if is_dying:
 		death_timer += delta
-		# Fade out sprite
-		if sprite != null:
-			var fade_progress = death_timer / death_duration
-			sprite.modulate = Color(1, 1, 1, lerp(1.0, 0.0, fade_progress))
-		# Despawn after death duration
 		if death_timer >= death_duration:
 			queue_free()
 			return
-	
+	else:
+		_update_intangibility(delta)
+
+	# Handle attack timer (triggers pause/dash cycle). Held while phasing out or phased out so
+	# intangibility never overlaps an attack.
+	if current_state == BossState.ORBIT and not _is_holding_attacks():
+		attack_timer += delta
+		if attack_timer >= orbit_duration:
+			# Transition to pause. The dash target is fixed now so the marker can show it.
+			current_state = BossState.PAUSE
+			attack_timer = 0.0
+			state_timer = 0.0
+			dash_target = _opposite_orbit_point()
+
 	match current_state:
 		BossState.ORBIT:
 			update_orbit_movement(delta)
@@ -158,17 +184,18 @@ func _physics_process(delta: float) -> void:
 			update_pause_state(delta)
 		BossState.DASH:
 			update_dash_movement(delta)
+		BossState.ATTACK_WINDUP:
+			update_attack_windup_state(delta)
 		BossState.ATTACK_BURST:
 			update_attack_burst_state(delta)
 		BossState.ATTACK_BOUNCE:
 			update_attack_bounce_state(delta)
-		BossState.INTANGIBLE:
-			update_intangible_state(delta)
 		BossState.DEAD:
 			pass  # Boss stays still when dead
-	
+
 	# Update sprite flip based on movement direction
 	update_sprite_direction()
+	_update_visuals(delta)
 
 
 # ============================================================================
@@ -189,95 +216,139 @@ func update_pause_state(delta: float) -> void:
 			state_timer = 0.0
 			perform_attack_selection()
 			return
-		# Transition to dash
+		# Transition to dash (toward the target picked when the pause began)
 		current_state = BossState.DASH
 		state_timer = 0.0
-		# Pick a random point on the orbit to dash to
-		var random_angle = randf_range(0.0, TAU)
-		dash_target = arena_center + Vector2(cos(random_angle), sin(random_angle)) * orbit_radius
 		# Reverse orbit direction for next orbit
 		orbit_direction *= -1.0
 
 
+## The point on the orbit ring directly opposite the boss: a constant-length, predictable dash.
+func _opposite_orbit_point() -> Vector2:
+	return arena_center - (global_position - arena_center)
+
+
 func update_dash_movement(delta: float) -> void:
 	state_timer += delta
-	var progress = min(state_timer / dash_duration, 1.0)
-	
-	# Interpolate from current position to dash target
-	global_position = global_position.lerp(dash_target, progress)
-	
-	if progress >= 1.0:
+
+	# Constant-speed dash toward the target
+	global_position = global_position.move_toward(dash_target, dash_speed * delta)
+
+	if global_position.is_equal_approx(dash_target) or state_timer >= dash_duration:
 		perform_attack_selection()
 
 
 func perform_attack_selection() -> void:
-	"""Choose and launch an attack (burst and/or bounce) based on enabled toggles, then return to orbit if none are enabled."""
+	"""Pick the next attack from the sequence and start its windup, or return to orbit if no attack is enabled."""
 	orbit_angle = (global_position - arena_center).angle()
-	
-	if not enable_burst_attack and not enable_bounce_attack:
+
+	var next_attack := _next_attack()
+	if next_attack < 0:
 		# No attacks enabled, just return to orbit
 		current_state = BossState.ORBIT
 		state_timer = 0.0
 		attack_timer = 0.0
 		return
-	
-	# Phase 1: Mostly bursts with occasional bounces (30% chance bounce)
-	# Phase 2: More balanced (50% chance bounce)
-	var bounce_chance = 0.3 if phase == 1 else 0.5
-	var do_bounce = enable_bounce_attack and (not enable_burst_attack or randf() < bounce_chance)
-	
-	if do_bounce:
+
+	pending_attack = next_attack
+	current_state = BossState.ATTACK_WINDUP
+	state_timer = 0.0
+	attack_timer = 0.0  # Reset attack timer for next orbit cycle
+
+
+## Phase 1: burst, burst, bounce, repeat. Phase 2: burst, bounce, repeat. If only one attack is
+## enabled it is always used; returns -1 when none are.
+func _next_attack() -> int:
+	if not enable_burst_attack and not enable_bounce_attack:
+		return -1
+	if not enable_bounce_attack:
+		return AttackType.BURST
+	if not enable_burst_attack:
+		return AttackType.BOUNCE
+
+	var sequence := PHASE_1_ATTACK_SEQUENCE if phase == 1 else PHASE_2_ATTACK_SEQUENCE
+	var attack: int = sequence[attack_index % sequence.size()]
+	attack_index += 1
+	return attack
+
+
+## Holds still and glows so the attack can be read before it spawns.
+func update_attack_windup_state(delta: float) -> void:
+	state_timer += delta
+	if state_timer < attack_telegraph_duration:
+		return
+
+	if pending_attack == AttackType.BOUNCE:
 		spawn_bounce_attack()
 		current_state = BossState.ATTACK_BOUNCE
 	else:
 		spawn_burst_attack()
 		current_state = BossState.ATTACK_BURST
-	
 	state_timer = 0.0
-	attack_timer = 0.0  # Reset attack timer for next orbit cycle
 
 
-func update_intangible_state(delta: float) -> void:
-	intangible_state_timer += delta
-	
-	# Boss becomes translucent and cannot take damage
-	if sprite != null:
-		# Fade the sprite to semi-transparent
-		sprite.modulate = Color(1, 1, 1, 0.5)
-	
-	# Disable the hurtbox so damage cannot be applied
-	if hurtbox != null:
-		hurtbox.monitoring = false
-	
-	# Check if intangible duration has elapsed
-	if intangible_state_timer >= intangible_duration:
-		# Exit intangible state and return to orbit
-		exit_intangible_state()
+# ============================================================================
+# Intangibility (overlay; defensive: orbits only, no attacks)
+# ============================================================================
+
+## True while the boss is flickering before phasing out or is phased out. Attacks don't start then.
+func _is_holding_attacks() -> bool:
+	return is_intangible or intangible_warning_timer > 0.0
+
+
+func _update_intangibility(delta: float) -> void:
+	if not enable_intangibility or current_state == BossState.DEAD:
+		return
+
+	if is_intangible:
+		intangible_state_timer += delta
+		if intangible_state_timer >= intangible_duration:
+			exit_intangible_state()
+		return
+
+	if intangible_warning_timer > 0.0:
+		intangible_warning_timer -= delta
+		if intangible_warning_timer <= 0.0:
+			enter_intangible_state()
+		return
+
+	# The interval only counts tangible time. Phasing waits for ORBIT so it never cuts an attack off.
+	intangible_timer += delta
+	if intangible_timer >= intangible_interval and current_state == BossState.ORBIT:
+		if intangible_warning_duration > 0.0:
+			intangible_warning_timer = intangible_warning_duration
+		else:
+			enter_intangible_state()
 
 
 func enter_intangible_state() -> void:
 	if debug_enabled:
 		print_debug("[Phantoon] Entering intangible state!")
-	current_state = BossState.INTANGIBLE
+	is_intangible = true
 	intangible_state_timer = 0.0
-	intangible_timer = 0.0  # Reset intangible timer for next cycle
+	intangible_warning_timer = 0.0
+	_set_phased(true)
 
 
 func exit_intangible_state() -> void:
 	if debug_enabled:
 		print_debug("[Phantoon] Exiting intangible state!")
-	# Restore opacity
-	if sprite != null:
-		sprite.modulate = Color(1, 1, 1, 1)
-	
-	# Re-enable the hurtbox
-	if hurtbox != null:
-		hurtbox.monitoring = true
-	
-	# Return to orbit state
-	current_state = BossState.ORBIT
-	attack_timer = 0.0
+	is_intangible = false
 	intangible_state_timer = 0.0
+	intangible_timer = 0.0  # Next phase-out is a full interval away
+	_set_phased(false)
+
+
+## Toggles every way the boss can touch the world. Hurtbox `monitorable` is the important one:
+## projectiles find the hurtbox by overlapping it, which depends on monitorable, not monitoring.
+func _set_phased(phased: bool) -> void:
+	set_deferred("collision_layer", 0 if phased else _body_layer)
+	if hurtbox:
+		hurtbox.set_deferred("monitorable", not phased)
+		hurtbox.set_deferred("monitoring", not phased)
+	if contact_damage:
+		contact_damage.set_deferred("monitoring", not phased)
+		contact_damage.set_deferred("monitorable", not phased)
 
 
 # ============================================================================
@@ -305,25 +376,26 @@ func update_attack_bounce_state(delta: float) -> void:
 func spawn_burst_attack() -> void:
 	if debug_enabled:
 		print_debug("[Phantoon] Spawning radial burst attack!")
-	
+
 	if radial_projectile_scene == null:
 		if debug_enabled:
 			print_debug("[Phantoon] ERROR: radial_projectile_scene not loaded. Skipping attack.")
 		return
-	
+
 	var projectile_speed = phase_1_burst_speed if phase == 1 else phase_2_burst_speed
 	var rotation_offset = phase_1_burst_rotation if phase == 1 else phase_2_burst_rotation
-	var angle_step = TAU / burst_projectile_count
-	
-	for i in range(burst_projectile_count):
+	var count = burst_projectile_count if phase == 1 else phase_2_burst_count
+	var angle_step = TAU / count
+
+	for i in range(count):
 		var angle = (i * angle_step) + rotation_offset
 		var direction = Vector2(cos(angle), sin(angle))
-		
+
 		# Spawn projectile just outside the boss's own sprite/collision
 		var projectile = radial_projectile_scene.instantiate()
 		get_parent().add_child(projectile)
 		projectile.global_position = global_position + direction * burst_spawn_offset
-		
+
 		# Configure projectile
 		if projectile.has_method("launch"):
 			projectile.launch(direction, projectile_speed, self)
@@ -334,31 +406,31 @@ func spawn_burst_attack() -> void:
 func spawn_bounce_attack() -> void:
 	if debug_enabled:
 		print_debug("[Phantoon] Spawning bouncing fireball attack!")
-	
+
 	if bounce_projectile_scene == null:
 		if debug_enabled:
 			print_debug("[Phantoon] ERROR: bounce_projectile_scene not loaded. Skipping attack.")
 		return
-	
+
 	var fireball_count = phase_1_bounce_count if phase == 1 else phase_2_bounce_count
-	
+
 	# Create evenly spaced spawn points below the boss
 	# For example, if fireball_count = 5, they spawn at: -40, -20, 0, +20, +40 units horizontally
 	var spacing = 20.0  # Distance between each fireball
 	var start_offset = -(fireball_count - 1) * spacing / 2.0  # Center the pattern
-	
+
 	for i in range(fireball_count):
 		# Calculate horizontal offset for this fireball
 		var offset_x = start_offset + (i * spacing)
 		var spawn_pos = global_position + Vector2(offset_x, 40.0)
-		
+
 		var fireball = bounce_projectile_scene.instantiate()
 		get_parent().add_child(fireball)
 		fireball.global_position = spawn_pos
-		
+
 		# Configure fireball
 		if fireball.has_method("setup"):
-			fireball.setup(bounce_gravity, bounce_projectile_speed)
+			fireball.setup(bounce_gravity, bounce_projectile_speed, self)
 
 
 # ============================================================================
@@ -366,15 +438,18 @@ func spawn_bounce_attack() -> void:
 # ============================================================================
 
 func take_damage(damage: int, source = null) -> void:
-	# Cannot take damage while intangible or dead
-	if current_state == BossState.INTANGIBLE or current_state == BossState.DEAD:
+	# Backstop: the hurtbox is already unreachable while intangible
+	if is_intangible or current_state == BossState.DEAD:
 		return
-	
+
 	health.take_damage(damage, source)
 	check_phase_transition()
 
 
 func check_phase_transition() -> void:
+	# The hit that triggers death must not also start phase 2
+	if current_state == BossState.DEAD or is_dying:
+		return
 	if phase == 1 and not phase_2_triggered:
 		if health.current_health <= max_health / 2.0:
 			enter_phase_2()
@@ -385,18 +460,16 @@ func enter_phase_2() -> void:
 	phase_2_triggered = true
 	if debug_enabled:
 		print_debug("[Phantoon] Entering Phase 2!")
-	
+
 	# Phase 2 modifications: Faster and more aggressive
 	orbit_speed *= 1.5  # Faster orbit
 	pause_duration *= 0.75  # Shorter pauses
 	orbit_duration *= 0.8  # Attacks more frequently
-	
-	# Visual feedback for phase transition
-	if sprite != null:
-		# Briefly flash white to indicate phase change
-		sprite.modulate = Color(2, 2, 2, 1)
-		await get_tree().create_timer(0.2).timeout
-		sprite.modulate = Color(1, 1, 1, 1)
+	intangible_interval *= 0.75  # Phases out more often
+	attack_index = 0  # Phase 2 starts its own attack sequence from the top
+
+	# Visual feedback for phase transition: brief white flash (drawn by _update_visuals)
+	phase_flash_timer = PHASE_FLASH_DURATION
 
 
 # ============================================================================
@@ -406,25 +479,27 @@ func enter_phase_2() -> void:
 func _on_health_damaged(amount: int, new_health: int) -> void:
 	if debug_enabled:
 		print_debug("[Phantoon] Took damage: ", amount, " | Health: ", new_health, "/", max_health)
-	# Visual feedback: sprite flash red briefly
-	if sprite != null:
-		sprite.modulate = Color(1, 0.5, 0.5, 1)  # Red tint
-		damage_flash_timer.start(0.12)  # Flash duration
+	# Visual feedback: red tint while the flash timer runs (drawn by _update_visuals)
+	damage_flash_timer.start(0.12)
 
 
 func _on_health_died() -> void:
+	DropManager.drop_guaranteed(self, death_health_drops, death_missile_drops, death_drop_spread, death_drop_lifetime)
 	if debug_enabled:
 		print_debug("[Phantoon] Boss defeated!")
 	is_dying = true
+	is_intangible = false
+	intangible_warning_timer = 0.0
 	current_state = BossState.DEAD
 	death_timer = 0.0
-	
+
 	# Disable collisions immediately
 	for child in get_children():
-		if child is CollisionShape2D:
+		if child is CollisionShape2D or child is CollisionPolygon2D:
 			child.set_deferred("disabled", true)
 		elif child is Area2D:
 			child.set_deferred("monitoring", false)
+			child.set_deferred("monitorable", false)
 
 
 # ============================================================================
@@ -437,7 +512,52 @@ func update_sprite_direction() -> void:
 		sprite.flip_h = orbit_direction < 0
 
 
-func _on_damage_flash_timer_timeout() -> void:
-	# Reset sprite modulation after damage flash
-	if sprite != null:
-		sprite.modulate = Color(1, 1, 1, 1)
+## Single place that decides the sprite's colour each frame, so the damage flash, the phase flash,
+## intangibility and the death fade can't overwrite each other.
+func _update_visuals(delta: float) -> void:
+	if sprite == null:
+		return
+
+	if phase_flash_timer > 0.0:
+		phase_flash_timer -= delta
+
+	var color := Color.WHITE
+	if current_state == BossState.ATTACK_WINDUP:
+		# Glow ramps up over the windup
+		var windup_progress := clampf(state_timer / maxf(attack_telegraph_duration, 0.001), 0.0, 1.0)
+		color = Color.WHITE.lerp(WINDUP_COLOR, windup_progress)
+	if phase_flash_timer > 0.0:
+		color = PHASE_FLASH_COLOR
+	if damage_flash_timer.time_left > 0.0:
+		color = DAMAGE_FLASH_COLOR
+
+	if is_intangible:
+		color.a = intangible_fade_amount
+	elif intangible_warning_timer > 0.0:
+		# Flicker as a warning that it's about to phase out
+		color.a = intangible_fade_amount if int(Time.get_ticks_msec() / 80.0) % 2 == 0 else 1.0
+
+	if is_dying:
+		color.a = lerpf(1.0, 0.0, clampf(death_timer / death_duration, 0.0, 1.0))
+
+	sprite.modulate = color
+
+	# Redraw the dash marker while it shows, and once more when it should disappear
+	var show_marker := _should_show_dash_marker()
+	if show_marker or _dash_marker_visible:
+		queue_redraw()
+	_dash_marker_visible = show_marker
+
+
+func _should_show_dash_marker() -> bool:
+	return enable_dash and show_dash_marker and not is_dying and (current_state == BossState.PAUSE or current_state == BossState.DASH)
+
+
+## Dash telegraph: a ring at the dash target and a faint line along the path, shown from the start
+## of the pause until the boss arrives.
+func _draw() -> void:
+	if not _should_show_dash_marker():
+		return
+	var target_local := to_local(dash_target)
+	draw_line(Vector2.ZERO, target_local, Color(DASH_MARKER_COLOR, 0.25), 1.0)
+	draw_arc(target_local, 8.0, 0.0, TAU, 24, DASH_MARKER_COLOR, 1.5)
