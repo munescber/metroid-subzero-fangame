@@ -1,0 +1,51 @@
+[gd_scene format=3 uid="uid://bxvbvk2i3af2x"]
+
+[ext_resource type="Script" uid="uid://cs466rvovs3ti" path="res://Scripts/Pickups/health_pickup.gd" id="1_script"]
+[ext_resource type="AudioStream" uid="uid://bw4oue1of3iff" path="res://Audio/SFX/Pickups/msz_average_pickup.wav" id="2_pkvu4"]
+[ext_resource type="Texture2D" uid="uid://b3gikucofefs3" path="res://Tilesets/miscellaneous.png" id="2_tex"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_item"]
+size = Vector2(16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_vdg50"]
+atlas = ExtResource("2_tex")
+region = Rect2(0, 64, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pkvu4"]
+atlas = ExtResource("2_tex")
+region = Rect2(16, 64, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_l3xls"]
+atlas = ExtResource("2_tex")
+region = Rect2(32, 64, 16, 16)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_gbtge"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_vdg50")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pkvu4")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_l3xls")
+}],
+"loop": 1,
+"name": &"default",
+"speed": 5.0
+}]
+
+[node name="HealthPickup" type="Area2D" unique_id=1509223714]
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("1_script")
+pickup_sound = ExtResource("2_pkvu4")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=794353508]
+visible = false
+shape = SubResource("RectangleShape2D_item")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1726936273]
+sprite_frames = SubResource("SpriteFrames_gbtge")
+frame_progress = 0.50203377

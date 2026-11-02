@@ -1,8 +1,9 @@
 # Room Gate — Implementation Notes
 
 A bubble gate that blocks a doorway until the player shoots it. It plays an
-opening animation while still solid, then loses all collision and stays open
-permanently (there is no closing logic).
+opening animation while still solid, then loses all collision and stays open.
+Optionally it closes again after a delay, and it can be paired with a gate on
+the other side of a room border (see "Paired gates and closing").
 
 ## Files
 
@@ -136,15 +137,42 @@ body shape is enabled (the whole `open` animation included).
   bullets, charge beam, missiles and dash afterimages are all at 0 (the
   player's charge effect at 1), so all of them draw behind the frame.
 
+## Paired gates and closing
+
+Two gates on both sides of a room border (for example `RoomGate` in `Room_Start`
+and `RoomGate2` in `Room_Central`) point at each other with `partner_path`.
+
+- When a gate finishes opening, it calls `open_instantly()` on its partner. The
+  partner jumps to the empty last frame of `open` and loses its collision, so the
+  player never arrives inside a closed gate. This also works while the partner's
+  room is deactivated, because no animation has to play.
+- With `close_again` on, an open gate counts `close_delay` seconds (in
+  `_physics_process`, so the countdown only runs while its room is active). Then
+  it closes by playing `open` backwards, and its collision is back from the first
+  frame. While the player overlaps the doorway (the hurtbox shape is queried on
+  the PlayerBody layer) it keeps waiting, so nobody gets trapped inside.
+- When a gate starts closing, it calls `close_instantly()` on its partner, which
+  goes back to `idle` with collision. The partner's own countdown stops.
+- Shots during the closing animation are ignored.
+- The partner's countdown starts when it opens. In a frozen or deactivated room
+  it is paused, so it counts down once that room simulates again.
+
+States: `is_opening`, `is_open`, `is_closing`. Signals: `opened`, `closed`.
+
 ## Inspector settings (`RoomGate`)
 
 | Property | Default | Meaning |
 |---|---|---|
 | `open_speed_scale` | 1.0 | Multiplier on the `open` animation speed (base 10 fps). 2.0 opens twice as fast |
-| `debug_enabled` | off | Prints ignored hits, opening and open events |
+| `partner_path` | empty | Gate on the other side of the doorway. Set it on both gates |
+| `close_again` | off | Close again after `close_delay` seconds, playing `open` backwards |
+| `close_delay` | 3.0 | Seconds the gate stays open before it closes (0.1 to 60) |
+| `save_id` | empty | Stable id so the gate stays open after saving. Gates with `close_again` are never saved. See `save_logic/SAVE_SYSTEM.md` |
+| `debug_enabled` | off | Prints ignored hits, opening, open and closing events |
 
-Public API: `take_damage()` (called by projectiles), flags `is_opening` /
-`is_open`, signal `opened`.
+Public API: `take_damage()` (called by projectiles), `open_instantly()`,
+`close_instantly()`, flags `is_opening` / `is_open` / `is_closing`, signals
+`opened` / `closed`.
 
 To change the base speed or the frames, edit the `open` animation in the
 `SpriteFrames` resource of `AnimatedSprite2D`.
@@ -184,7 +212,8 @@ covers the player as intended.
 
 ## Known limitations
 
-- One-way: the gate never closes again and has no `toggle()`.
+- By default the gate stays open; closing needs `close_again`. There is no `toggle()`.
+- Open state is only saved when `save_id` is set and `close_again` is off.
 - Only the player's projectiles open it; there is no activation-button or
   contact trigger.
 - The empty `open` frame is a region of the sheet; the sheet's bottom 48 px must

@@ -13,6 +13,9 @@
 [ext_resource type="PackedScene" uid="uid://dt3nv6spgohf5" path="res://Scenes/Environment/room_gate.tscn" id="10_room_gate"]
 [ext_resource type="PackedScene" path="res://Scenes/Environment/SpikeHazard.tscn" id="12_d533q"]
 [ext_resource type="PackedScene" uid="uid://bp1jydra2bt8k" path="res://Scenes/Environment/BreakableTile.tscn" id="13_esjyw"]
+[ext_resource type="PackedScene" uid="uid://b37x5yfk0m4py" path="res://Scenes/Effects/crt_filter.tscn" id="crt_filter"]
+[ext_resource type="Script" uid="uid://drw4et6iafu63" path="res://Scripts/Levels/room_camera.gd" id="room_camera_script"]
+[ext_resource type="Script" uid="uid://c8vuahvbse6xu" path="res://Scripts/Levels/room_region.gd" id="room_region_script"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_bg"]
 texture = ExtResource("1_7sarq")
@@ -936,22 +939,23 @@ texture = ExtResource("1_7sarq")
 sources/0 = SubResource("TileSetAtlasSource_fg")
 sources/2 = SubResource("TileSetAtlasSource_ee3wp")
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_esjyw"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_q4w0q"]
 resource_local_to_scene = true
 atlas = ExtResource("1_7sarq")
 region = Rect2(96, 48, 16, 16)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_u5nmf"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_y1wdq"]
 resource_local_to_scene = true
 atlas = ExtResource("1_7sarq")
 region = Rect2(96, 48, 16, 16)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_wr0ru"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_4ljqi"]
 resource_local_to_scene = true
 atlas = ExtResource("1_7sarq")
 region = Rect2(96, 48, 16, 16)
 
 [node name="level_wrecked_ship_0" type="Node2D" unique_id=1777562672]
+position = Vector2(41, 242)
 
 [node name="BackgroundTileMapLayer" type="TileMapLayer" parent="." unique_id=1933712802]
 z_index = -2
@@ -971,7 +975,7 @@ tile_map_data = PackedByteArray("AABLAPr/AAAJAAAAAABLAPv/AAAJAAEAAABLAPz/AAAJAAI
 tile_set = SubResource("TileSet_fg")
 
 [node name="player_rundas" parent="." unique_id=146499936 instance=ExtResource("2_6rmbd")]
-position = Vector2(609, -70)
+position = Vector2(514, -81)
 debug_enabled = true
 missiles_unlocked = true
 missile_ammo = 10
@@ -1030,18 +1034,14 @@ position = Vector2(41, -3)
 position = Vector2(473, -122)
 orbit_radius = 25.0
 max_health = 20
-phase_1_bounce_count = 5
 
 [node name="Covern" parent="Enemies" unique_id=1365786692 instance=ExtResource("5_dv0up")]
 position = Vector2(243, -86)
 
 [node name="Atomic" parent="Enemies" unique_id=1232447307 instance=ExtResource("6_7onpy")]
 position = Vector2(750, -112)
-enable_attacks = false
 float_speed = 20.0
 seek_speed = 10.0
-dash_speed = 50.0
-dash_cooldown = 3.0
 electric_field_interval = 5.0
 
 [node name="Gates" type="Node2D" parent="." unique_id=661177218]
@@ -1076,12 +1076,24 @@ position = Vector2(1496, -71)
 
 [node name="BreakableTile" parent="BreakableTiles" unique_id=430667263 instance=ExtResource("13_esjyw")]
 position = Vector2(1000, -135)
-texture = SubResource("AtlasTexture_esjyw")
+texture = SubResource("AtlasTexture_q4w0q")
 
 [node name="BreakableTile2" parent="BreakableTiles" unique_id=1992787765 instance=ExtResource("13_esjyw")]
 position = Vector2(984, -135)
-texture = SubResource("AtlasTexture_u5nmf")
+texture = SubResource("AtlasTexture_y1wdq")
 
 [node name="BreakableTile3" parent="BreakableTiles" unique_id=667271119 instance=ExtResource("13_esjyw")]
 position = Vector2(968, -135)
-texture = SubResource("AtlasTexture_wr0ru")
+texture = SubResource("AtlasTexture_4ljqi")
+
+[node name="CRTFilter" parent="." unique_id=1082100216 instance=ExtResource("crt_filter")]
+scale = Vector2(2, 2)
+transform = Transform2D(2, 0, 0, 2, 0, 0)
+
+[node name="RoomCamera" type="Camera2D" parent="." unique_id=345311141]
+position = Vector2(460, -80)
+script = ExtResource("room_camera_script")
+
+[node name="Room_Start" type="Node2D" parent="." unique_id=117215804]
+position = Vector2(333, -200)
+script = ExtResource("room_region_script")

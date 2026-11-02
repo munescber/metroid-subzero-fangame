@@ -47,10 +47,19 @@ radius = 13.038404
 [sub_resource type="CircleShape2D" id="CircleShape2D_detection"]
 radius = 82.0
 
-[node name="GhostCovern" type="CharacterBody2D" unique_id=386100342]
+[node name="GhostCovern" type="CharacterBody2D" unique_id=386100342 groups=["respawnable"]]
 collision_layer = 4
-collision_mask = 1
 script = ExtResource("2_7s3g0")
+disengage_radius = 240.0
+wander_speed = 20.0
+haunt_speed = 20.0
+haunt_smoothing = 2.0
+wander_radius = 100.0
+separation_radius = 40.0
+separation_strength = 50.0
+hover_angle_drift = 0.45
+intangible_duration = 2.0
+intangible_cooldown = 2.0
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1315883716]
 sprite_frames = SubResource("SpriteFrames_gbtge")

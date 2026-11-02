@@ -1,0 +1,99 @@
+[gd_scene format=3 uid="uid://cu0larhg71vcp"]
+
+[ext_resource type="Script" uid="uid://dof2tmfgdl06t" path="res://Scripts/Enemies/zoomer.gd" id="1_zoomer"]
+[ext_resource type="Script" uid="uid://dis5epw6hpsgu" path="res://Scripts/Common/hitbox.gd" id="2_hitbox"]
+[ext_resource type="Texture2D" uid="uid://t5vxq7gsej4w" path="res://Spritesheets/zoomer_spritesheet.png" id="2_s17ie"]
+[ext_resource type="Script" uid="uid://cjlps8ugi1jdq" path="res://Scripts/Common/hurtbox.gd" id="3_hurtbox"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_53cj2"]
+size = Vector2(14, 14.0625)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_o26e8"]
+atlas = ExtResource("2_s17ie")
+region = Rect2(0, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_67hdf"]
+atlas = ExtResource("2_s17ie")
+region = Rect2(16, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_sr4xw"]
+atlas = ExtResource("2_s17ie")
+region = Rect2(32, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ovbyu"]
+atlas = ExtResource("2_s17ie")
+region = Rect2(48, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_idle0"]
+atlas = ExtResource("2_s17ie")
+region = Rect2(0, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_idle1"]
+atlas = ExtResource("2_s17ie")
+region = Rect2(0, 16, 16, 16)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_zoomer"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_o26e8")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_67hdf")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_sr4xw")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ovbyu")
+}],
+"loop": 1,
+"name": &"idle",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_idle0")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_idle1")
+}],
+"loop": 1,
+"name": &"idle_2",
+"speed": 3.0
+}]
+
+[node name="zoomer" type="CharacterBody2D" unique_id=775280954 groups=["respawnable"]]
+collision_layer = 4
+script = ExtResource("1_zoomer")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1470161015]
+position = Vector2(0, -0.125)
+shape = SubResource("RectangleShape2D_53cj2")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1707079338]
+sprite_frames = SubResource("SpriteFrames_zoomer")
+animation = &"idle"
+
+[node name="ContactDamage" type="Area2D" parent="." unique_id=1567015826]
+collision_layer = 8
+collision_mask = 16
+script = ExtResource("2_hitbox")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ContactDamage" unique_id=453330502]
+position = Vector2(0, -0.0625)
+shape = SubResource("RectangleShape2D_53cj2")
+
+[node name="Hurtbox" type="Area2D" parent="." unique_id=1890396654]
+collision_layer = 16
+collision_mask = 8
+script = ExtResource("3_hurtbox")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox" unique_id=174513688]
+position = Vector2(0, -0.03125)
+shape = SubResource("RectangleShape2D_53cj2")
+
+[node name="Timer" type="Timer" parent="." unique_id=924966253]
+one_shot = true
+
+[connection signal="timeout" from="Timer" to="." method="_on_timer_timeout"]

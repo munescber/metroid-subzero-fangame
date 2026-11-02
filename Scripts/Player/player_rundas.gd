@@ -1,12 +1,21 @@
 extends CharacterBody2D
 
+## Emitted when health changes (damage, heal, new max). Forwarded from HealthComponent.
+signal health_changed(current_hp: int, max_hp: int)
+## Emitted when missile ammo or capacity changes.
+signal missiles_changed(current_ammo: int, max_ammo: int)
+## Emitted once, when missiles are first unlocked.
+signal missiles_acquired
+## Emitted when health reaches zero, before the level reloads from the last save.
+signal died
+
 # ==================================================
 # Player Movement Settings
 # ==================================================
 
 const MOVE_SPEED := 80.0
-const SHOOT_COOLDOWN := 0.20
-const MISSILE_COOLDOWN := 0.6
+const SHOOT_COOLDOWN := 0.10
+const MISSILE_COOLDOWN := 0.20
 const BULLET_OFFSET := Vector2(12, 0)
 const AIM_UP_ANGLE := PI/4
 const AIM_DOWN_ANGLE := -PI/4
@@ -15,6 +24,8 @@ const DASH_SPEED := 280.0
 const DASH_COOLDOWN := 1.0
 const DASH_WINDUP := 0.06  # brief mid-air hang before the burst
 const DASH_AFTERIMAGE_INTERVAL := 0.04
+const DOWN_DASH_DISTANCE := 80.0  # path length along the 45° diagonal
+const DOWN_DASH_SPEED := 360.0
 const CHARGE_EFFECT_MIN_SCALE := 0.4
 const CHARGE_EFFECT_MAX_SCALE := 1.0
 
@@ -29,6 +40,18 @@ const CHARGE_EFFECT_MAX_SCALE := 1.0
 # It restricts the cut to the player's own jump, and makes it happen at most once.
 var is_jump_rising: bool = false
 
+# Spin jump: a jump taken with enough horizontal speed plays SPIN_JUMP_ANIM and gets a
+# slightly stronger takeoff. The style is chosen once at takeoff, never while airborne.
+# Minimum |velocity.x| in px/s at takeoff. Run speed is a flat MOVE_SPEED (no acceleration),
+# so this currently acts as a "is running" switch; keep it at or below MOVE_SPEED.
+@export var spin_jump_speed_threshold: float = 80.0
+# Multiplies jump_velocity at takeoff (> 1 = higher, since jump_velocity is negative).
+@export_range(1.0, 1.5, 0.01) var spin_jump_velocity_multiplier: float = 1.08
+# SpriteFrames animation name for the spin (looping OFF so animation_finished fires).
+const SPIN_JUMP_ANIM := "spin_jump"
+# True from a spin takeoff until the animation ends, or the player lands, dashes or gets hit.
+var is_spin_jumping: bool = false
+
 # The player's own gravity in px/s^2, independent of the project's default_gravity
 # (which other bodies, such as the rhinobug, still read).
 @export var jump_gravity: float = 750.0
@@ -40,6 +63,23 @@ var is_jump_rising: bool = false
 @export var apex_velocity_threshold: float = 60.0
 # Terminal downward speed in px/s, applied to normal airborne falling only.
 @export var max_fall_speed: float = 400.0
+
+# Sound effects (played through AudioManager). Leave empty for silence.
+@export_group("Sounds")
+@export var sfx_bullet: AudioStream
+## Loops while the shoot key is held charging; stops on release or when the beam fires.
+@export var sfx_charge_loop: AudioStream
+@export var sfx_charge_shot: AudioStream
+## Played once on a standing/normal jump (spin jumps use sfx_spin_jump instead).
+@export var sfx_jump: AudioStream
+## Loops for as long as the spin jump lasts (until the spin ends, landing, a shot, dash or hit).
+@export var sfx_spin_jump: AudioStream
+@export var sfx_missile: AudioStream
+## Played once when touching the floor after being airborne.
+@export var sfx_land: AudioStream
+## Loops while walking on the floor; stops when standing still, airborne or dashing.
+@export var sfx_walk: AudioStream
+@export_group("")
 
 # Reference to the AnimatedSprite2D node
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
@@ -56,8 +96,13 @@ var missile_scene: PackedScene = preload("res://Scenes/Player/missile.tscn")
 
 # Charge beam state: pressing "shoot" starts a charge. On release the player fires
 # a normal bullet, or the charge beam if held past charge_time_required.
-@export var charge_time_required: float = 1.0
+@export var charge_time_required: float = 0.8
 var is_charging: bool = false
+var _charge_loop_player: AudioStreamPlayer
+var _spin_loop_player: AudioStreamPlayer
+var _walk_loop_player: AudioStreamPlayer
+var _was_on_floor: bool = true
+const WALK_SFX_MIN_SPEED := 10.0
 var is_charged: bool = false
 var charge_time: float = 0.0
 var aim_angle: float = 0.0
@@ -68,6 +113,10 @@ var dash_cooldown_timer: float = 0.0
 var dash_remaining_distance: float = 0.0
 var dash_direction: float = 1.0
 var is_dashing: bool = false
+var dash_is_downward: bool = false
+# per airborne sequence; both reset on landing
+var air_dash_used: bool = false
+var down_dash_used: bool = false
 var dash_windup_timer: float = 0.0
 var dash_afterimage_timer: float = 0.0
 var dash_afterimage_scene: PackedScene = preload("res://Scenes/Player/dash_afterimage.tscn")
@@ -77,17 +126,31 @@ var health_comp: HealthComponent = null
 
 # Health and damage tuning
 @export var max_health: int = 100
+## Seconds between dying and the level reloading from the last save.
+@export var reload_delay: float = 1.5
 @export var debug_enabled: bool = false
+
+## Id under which SaveManager stores this player's stats.
+var save_id: String = "player"
 
 # Missiles: unlock state and ammo are independent (unlocked with 0 ammo can't fire).
 ## Whether missile shooting is unlocked at start (set true to test without a pickup).
-@export var missiles_unlocked: bool = false
+@export var missiles_unlocked: bool = false:
+	set(value):
+		var newly_unlocked := value and not missiles_unlocked
+		missiles_unlocked = value
+		if newly_unlocked:
+			missiles_acquired.emit()
+## Maximum missile ammo the player can carry (raise with increase_missile_capacity).
+@export_range(0, 9999, 1, "or_greater") var missile_max_ammo: int = 0:
+	set(value):
+		missile_max_ammo = maxi(value, 0)
+		missiles_changed.emit(missile_ammo, missile_max_ammo)
 ## Current missile ammo. Starting value is editable for testing; never negative.
 @export_range(0, 9999, 1, "or_greater") var missile_ammo: int = 0:
 	set(value):
 		missile_ammo = maxi(value, 0)
-## Ammo granted by each missile pickup.
-@export_range(1, 999, 1, "or_greater") var missile_pickup_amount: int = 5
+		missiles_changed.emit(missile_ammo, missile_max_ammo)
 
 # Damage / invulnerability
 @export var invulnerability_time: float = 0.8
@@ -166,8 +229,14 @@ func _update_aim_press_order() -> void:
 # Initialization
 # ==================================================
 
+var _projectile_parent: Node
+
 func _ready():
+	# Registered in code (not saved in the scene) so the group survives scene re-saves.
+	add_to_group("player")
+	add_to_group("saveable")
 	sprite.play("idle")
+	sprite.animation_finished.connect(_on_sprite_animation_finished)
 	_update_muzzle_position()
 
 	# initialize HealthComponent with the exported max health before any fight damage occurs
@@ -176,6 +245,7 @@ func _ready():
 	add_child(health_comp)
 	health_comp.connect("damaged", Callable(self, "_on_health_damaged"))
 	health_comp.connect("died", Callable(self, "_on_health_died"))
+	health_comp.health_changed.connect(func(cur: int, mx: int) -> void: health_changed.emit(cur, mx))
 
 	# save original sprite modulate for blinking
 	_original_modulate = sprite.modulate
@@ -200,6 +270,7 @@ func _physics_process(delta):
 
 	hurt_timer = maxf(hurt_timer - delta, 0.0)
 	update_animation()
+	_update_spin_loop()
 
 	# invulnerability handling (blink + timer)
 	if invulnerable:
@@ -214,9 +285,13 @@ func _physics_process(delta):
 			sprite.modulate = _original_modulate
 
 	move_and_slide()
+	_update_ground_sfx()
 
 	# the wall check is skipped during the windup, since no dash movement has happened yet
 	if is_dashing and dash_windup_timer <= 0.0 and is_on_wall():
+		_end_dash()
+	# the downward dash also stops on the floor or a ceiling so it can't slide along them
+	elif is_dashing and dash_is_downward and (is_on_floor() or is_on_ceiling()):
 		_end_dash()
 
 
@@ -238,29 +313,51 @@ func handle_shoot(delta):
 	_update_charge(delta)
 
 
+func _play_sfx(stream: AudioStream) -> void:
+	AudioManager.play_sfx_2d(stream, global_position)
+
+
 func _fire_bullet() -> void:
 	shoot_timer = SHOOT_COOLDOWN
 	_spawn_projectile(bullet_scene)
+	_play_sfx(sfx_bullet)
 
 
 func _fire_charge_beam() -> void:
 	_spawn_projectile(charge_beam_scene)
+	_play_sfx(sfx_charge_shot)
+
+
+# Firing ends the spin for the rest of the jump so the shot leaves a normal pose
+# (jump/fall) instead of a spinning body. A later jump picks its style again.
+func _cancel_spin_for_shot() -> void:
+	is_spin_jumping = false
+
+
+## Shots go to the level's `projectiles` container (cleared by RoomManager between rooms),
+## or to the level root when the level has none.
+func _get_projectile_parent() -> Node:
+	if not is_instance_valid(_projectile_parent):
+		_projectile_parent = get_tree().get_first_node_in_group("projectiles")
+	return _projectile_parent if _projectile_parent != null else get_parent()
 
 
 func _spawn_projectile(scene: PackedScene) -> void:
+	_cancel_spin_for_shot()
 	var shot := _get_shot_origin_and_dir()
 	var final_dir: Vector2 = shot[1]
 	var projectile = scene.instantiate()
 	projectile.start(final_dir, self)
 	# spawn slightly ahead so it doesn't immediately collide with player
 	projectile.global_position = shot[0]
-	get_parent().add_child(projectile)
+	_get_projectile_parent().add_child(projectile)
 
 
 func _start_charge() -> void:
 	is_charging = true
 	is_charged = false
 	charge_time = 0.0
+	_start_charge_loop()
 
 
 func _update_charge(delta: float) -> void:
@@ -289,7 +386,79 @@ func _update_charge(delta: float) -> void:
 	_update_charge_visual()
 
 
+# Landing one-shot and walking loop, both driven by the post-move floor state.
+func _update_ground_sfx() -> void:
+	var on_floor := is_on_floor()
+	if on_floor and not _was_on_floor:
+		_play_sfx(sfx_land)
+	_was_on_floor = on_floor
+
+	var walking := on_floor and not is_dashing and absf(velocity.x) > WALK_SFX_MIN_SPEED
+	if walking and sfx_walk != null:
+		if _walk_loop_player == null:
+			_walk_loop_player = AudioStreamPlayer.new()
+			_walk_loop_player.bus = AudioManager.BUS_SFX
+			# restart on finish so it loops even if the imported stream has looping off
+			_walk_loop_player.finished.connect(_on_walk_loop_finished)
+			add_child(_walk_loop_player)
+			_walk_loop_player.stream = sfx_walk
+		if not _walk_loop_player.playing:
+			_walk_loop_player.play()
+	elif _walk_loop_player and _walk_loop_player.playing:
+		_walk_loop_player.stop()
+
+
+func _on_walk_loop_finished() -> void:
+	if is_on_floor() and absf(velocity.x) > WALK_SFX_MIN_SPEED:
+		_walk_loop_player.play()
+
+
+# Follows is_spin_jumping, which is cleared from several places, so it is polled once per frame.
+func _update_spin_loop() -> void:
+	if is_spin_jumping and sfx_spin_jump != null:
+		if _spin_loop_player == null:
+			_spin_loop_player = AudioStreamPlayer.new()
+			_spin_loop_player.bus = AudioManager.BUS_SFX
+			# restart on finish so it loops even if the imported stream has looping off
+			_spin_loop_player.finished.connect(_on_spin_loop_finished)
+			add_child(_spin_loop_player)
+			_spin_loop_player.stream = sfx_spin_jump
+		if not _spin_loop_player.playing:
+			_spin_loop_player.play()
+	elif _spin_loop_player and _spin_loop_player.playing:
+		_spin_loop_player.stop()
+
+
+func _on_spin_loop_finished() -> void:
+	if is_spin_jumping:
+		_spin_loop_player.play()
+
+
+func _start_charge_loop() -> void:
+	if sfx_charge_loop == null:
+		return
+	if _charge_loop_player == null:
+		_charge_loop_player = AudioStreamPlayer.new()
+		_charge_loop_player.bus = AudioManager.BUS_SFX
+		# restart on finish so it loops even if the imported stream has looping off
+		_charge_loop_player.finished.connect(_on_charge_loop_finished)
+		add_child(_charge_loop_player)
+	_charge_loop_player.stream = sfx_charge_loop
+	_charge_loop_player.play()
+
+
+func _on_charge_loop_finished() -> void:
+	if is_charging:
+		_charge_loop_player.play()
+
+
+func _stop_charge_loop() -> void:
+	if _charge_loop_player:
+		_charge_loop_player.stop()
+
+
 func _reset_charge() -> void:
+	_stop_charge_loop()
 	is_charging = false
 	is_charged = false
 	charge_time = 0.0
@@ -297,6 +466,10 @@ func _reset_charge() -> void:
 
 
 func _update_charge_visual() -> void:
+	# the glow looks wrong on a spinning body; the charge itself keeps building underneath
+	if is_spin_jumping:
+		charge_effect.visible = false
+		return
 	var ratio: float = clampf(charge_time / maxf(charge_time_required, 0.001), 0.0, 1.0)
 	charge_effect.visible = true
 	if is_charged:
@@ -311,14 +484,83 @@ func _update_charge_visual() -> void:
 		charge_effect.modulate = Color(1, 1, 1, lerpf(0.3, 0.8, ratio) * (0.8 + 0.2 * pulse))
 
 
-## Called by MissilePickup. There is no ammo cap in this project, so the
-## "y" in the log is shown as ∞ rather than an invented maximum.
-func collect_missiles() -> void:
+## Called by MissileExpansion. Unlocks missiles if needed, then raises capacity
+## and ammo by `amount` (existing ammo is kept).
+func collect_missile_expansion(amount: int) -> void:
 	if not missiles_unlocked:
 		missiles_unlocked = true
 		print("Missile enabled")
-	missile_ammo += missile_pickup_amount
-	print("Missiles obtained. Count %d/∞" % missile_ammo)
+	increase_missile_capacity(amount)
+	print("Missile expansion obtained. Count %d/%d" % [missile_ammo, missile_max_ammo])
+
+
+## Raises missile capacity and, like the classic expansions, grants the same ammo.
+func increase_missile_capacity(amount: int) -> void:
+	if amount <= 0:
+		return
+	missile_max_ammo += amount
+	missile_ammo += amount
+
+
+## True while the player is holding a charge; health and missile pickups are
+## pulled toward the player (see Pickup magnet exports).
+func attracts_pickups() -> bool:
+	return is_charging
+
+
+## Returns the HP actually restored (0 when full, dead, or amount <= 0).
+func heal(amount: int) -> int:
+	if health_comp:
+		return health_comp.heal(amount)
+	return 0
+
+
+## Refills missile ammo up to the current max; never unlocks or raises capacity.
+## Returns the ammo actually restored (0 when locked, full, or amount <= 0).
+func restore_missiles(amount: int) -> int:
+	if not missiles_unlocked or amount <= 0:
+		return 0
+	var restored := mini(amount, missile_max_ammo - missile_ammo)
+	if restored <= 0:
+		return 0
+	missile_ammo += restored
+	return restored
+
+
+## Raises max health and heals by the same amount (energy-tank style).
+func increase_max_health(amount: int) -> void:
+	if health_comp and amount > 0:
+		health_comp.set_max_health(health_comp.max_health + amount)
+		health_comp.heal(amount)
+
+
+## Full health and full missiles (used by save points).
+func restore_all() -> void:
+	if health_comp:
+		health_comp.heal(health_comp.max_health)
+	restore_missiles(missile_max_ammo)
+
+
+func get_save_data() -> Dictionary:
+	if health_comp == null:
+		return {}
+	return {
+		"max_health": health_comp.max_health,
+		"health": health_comp.current_health,
+		"missiles_unlocked": missiles_unlocked,
+		"missile_max_ammo": missile_max_ammo,
+		"missile_ammo": missile_ammo,
+	}
+
+
+func load_save_data(data: Dictionary) -> void:
+	if health_comp and data.has("max_health"):
+		health_comp.set_max_health(int(data["max_health"]))
+		health_comp.current_health = clampi(int(data.get("health", health_comp.max_health)), 1, health_comp.max_health)
+		health_comp.health_changed.emit(health_comp.current_health, health_comp.max_health)
+	missiles_unlocked = bool(data.get("missiles_unlocked", missiles_unlocked))
+	missile_max_ammo = int(data.get("missile_max_ammo", missile_max_ammo))
+	missile_ammo = int(data.get("missile_ammo", missile_ammo))
 
 
 func _try_fire_missile() -> void:
@@ -335,13 +577,15 @@ func _try_fire_missile() -> void:
 
 	missile_timer = MISSILE_COOLDOWN
 	missile_ammo -= 1
+	_cancel_spin_for_shot()
 	var shot := _get_shot_origin_and_dir()
 	var final_dir: Vector2 = shot[1]
 	var missile = missile_scene.instantiate()
 	missile.start(final_dir, self)
 	# spawn slightly ahead so it doesn't immediately collide with player
 	missile.global_position = shot[0]
-	get_parent().add_child(missile)
+	_get_projectile_parent().add_child(missile)
+	_play_sfx(sfx_missile)
 
 	if debug_enabled:
 		print_debug("[Player] Missiles left: %d" % missile_ammo)
@@ -351,37 +595,74 @@ func _try_fire_missile() -> void:
 func handle_dash(delta):
 	dash_cooldown_timer = max(dash_cooldown_timer - delta, 0.0)
 
+	# landing recharges the per-jump dashes; the cooldown timers keep running independently
+	if is_on_floor():
+		air_dash_used = false
+		down_dash_used = false
+	elif is_dashing and not dash_is_downward:
+		# a ground dash that carries the player off a ledge counts as the air dash
+		air_dash_used = true
+
 	if is_dashing:
 		_update_dash(delta)
 		return
 
-	if Input.is_action_just_pressed("dash") and dash_cooldown_timer <= 0.0 and knockback_lock_timer <= 0.0:
+	if not Input.is_action_just_pressed("dash") or knockback_lock_timer > 0.0:
+		return
+
+	if is_on_floor():
+		if dash_cooldown_timer <= 0.0:
+			_start_dash()
+	elif Input.is_action_pressed("down"):
+		# in the air, S + K only ever means the downward dash, never the horizontal one
+		if _can_start_down_dash():
+			_start_dash(true)
+	elif dash_cooldown_timer <= 0.0 and not air_dash_used:
 		_start_dash()
 
 
-func _start_dash() -> void:
+# Independent of the horizontal dash: once per airborne sequence, no cooldown.
+func _can_start_down_dash() -> bool:
+	return not down_dash_used
+
+
+func _start_dash(downward: bool = false) -> void:
 	is_dashing = true
-	dash_cooldown_timer = DASH_COOLDOWN
-	dash_remaining_distance = DASH_DISTANCE
-	dash_windup_timer = DASH_WINDUP
+	dash_is_downward = downward
 	dash_afterimage_timer = 0.0
 	dash_direction = -1.0 if sprite.flip_h else 1.0
+	if downward:
+		down_dash_used = true
+		dash_remaining_distance = DOWN_DASH_DISTANCE
+		dash_windup_timer = 0.0
+	else:
+		dash_cooldown_timer = DASH_COOLDOWN
+		dash_remaining_distance = DASH_DISTANCE
+		dash_windup_timer = DASH_WINDUP
+		if not is_on_floor():
+			air_dash_used = true
 	# the dash replaces any jump/fall momentum instead of inheriting it
 	velocity = Vector2.ZERO
 	is_jump_rising = false
+	is_spin_jumping = false
 
 
 func _update_dash(delta: float) -> void:
 	# movement itself is done by the single move_and_slide() in _physics_process
-	velocity.y = 0.0
+	if not dash_is_downward:
+		velocity.y = 0.0
 
 	if dash_windup_timer > 0.0:
 		dash_windup_timer -= delta
 		velocity.x = 0.0
 		return
 
-	velocity.x = dash_direction * DASH_SPEED
-	dash_remaining_distance -= DASH_SPEED * delta
+	if dash_is_downward:
+		velocity = Vector2(dash_direction, 1.0).normalized() * DOWN_DASH_SPEED
+		dash_remaining_distance -= DOWN_DASH_SPEED * delta
+	else:
+		velocity.x = dash_direction * DASH_SPEED
+		dash_remaining_distance -= DASH_SPEED * delta
 
 	dash_afterimage_timer -= delta
 	if dash_afterimage_timer <= 0.0:
@@ -394,6 +675,7 @@ func _update_dash(delta: float) -> void:
 
 func _end_dash() -> void:
 	is_dashing = false
+	dash_is_downward = false
 	dash_windup_timer = 0.0
 	# no leftover momentum: gravity takes over from zero if airborne
 	velocity = Vector2.ZERO
@@ -401,7 +683,7 @@ func _end_dash() -> void:
 
 func _spawn_afterimage() -> void:
 	var afterimage: DashAfterimage = dash_afterimage_scene.instantiate()
-	get_parent().add_child(afterimage)
+	_get_projectile_parent().add_child(afterimage)
 	afterimage.setup(sprite)
 
 
@@ -425,8 +707,14 @@ func handle_jump():
 	if is_dashing:
 		return
 	if Input.is_action_just_pressed("jump") and is_on_floor():
-		velocity.y = jump_velocity
+		# jump style is decided here only, from the speed at takeoff
+		is_spin_jumping = abs(velocity.x) >= spin_jump_speed_threshold
+		velocity.y = jump_velocity * (spin_jump_velocity_multiplier if is_spin_jumping else 1.0)
 		is_jump_rising = true
+		if not is_spin_jumping:
+			_play_sfx(sfx_jump)
+	elif is_on_floor():
+		is_spin_jumping = false
 
 	if not is_jump_rising:
 		return
@@ -514,19 +802,82 @@ func update_animation():
 	if hurt_timer > 0.0 and sprite.sprite_frames.has_animation("hurt"):
 		sprite.play("hurt")
 
+	elif is_dashing and dash_is_downward and sprite.sprite_frames.has_animation("dash_downward"):
+		sprite.play("dash_downward")
+
 	elif is_dashing and sprite.sprite_frames.has_animation("dash"):
 		sprite.play("dash")
 
 	elif !is_on_floor():
 		# the air dash zeroes velocity.y, so keep the current pose instead of flipping to "fall"
 		if not is_dashing:
-			sprite.play("jump" if velocity.y < 0.0 else "fall")
+			# the spin wins over aim-up until it finishes, then jump_aim_up/fall resume
+			if is_spin_jumping and _has_anim(SPIN_JUMP_ANIM):
+				_play_anim(SPIN_JUMP_ANIM)
+			elif _is_aiming_straight_up() and _has_anim("jump_aim_up"):
+				_play_anim("jump_aim_up")
+			elif _is_aiming_straight_down() and _has_anim("jump_aim_down"):
+				_play_anim("jump_aim_down")
+			elif _is_aiming_diagonal_up() and _has_anim("jump_aim_diagonal_up"):
+				_play_anim("jump_aim_diagonal_up")
+			else:
+				sprite.play("jump" if velocity.y < 0.0 else "fall")
+
+	elif _is_aiming_straight_up() and abs(velocity.x) > 0 and _has_anim("walk_aim_up"):
+		_play_anim("walk_aim_up")
+
+	elif _is_aiming_diagonal_up() and abs(velocity.x) > 0 and _has_anim("walk_aim_diagonal_up"):
+		_play_anim("walk_aim_diagonal_up")
+
+	elif _is_aiming_straight_up() and _has_anim("idle_aim_up"):
+		_play_anim("idle_aim_up")
+
+	elif _is_aiming_diagonal_up() and _has_anim("idle_aim_diagonal_up"):
+		_play_anim("idle_aim_diagonal_up")
 
 	elif abs(velocity.x) > 0:
 		sprite.play("walk")
 
 	else:
 		sprite.play("idle")
+
+
+# Straight-up aim comes from the centralized aim resolver (W held and winning priority).
+func _is_aiming_straight_up() -> bool:
+	return get_aim_direction() == Vector2.UP
+
+
+func _is_aiming_straight_down() -> bool:
+	return get_aim_direction() == Vector2.DOWN
+
+
+# Diagonal-up aim (Q): x follows the facing side, y is up.
+func _is_aiming_diagonal_up() -> bool:
+	var dir: Vector2 = get_aim_direction()
+	return dir.y < 0.0 and not is_zero_approx(dir.x)
+
+
+var _warned_missing_anims: Dictionary = {}
+
+# True if the animation exists; warns once per missing name instead of every frame.
+func _has_anim(anim_name: String) -> bool:
+	if sprite.sprite_frames.has_animation(anim_name):
+		return true
+	if not _warned_missing_anims.has(anim_name):
+		_warned_missing_anims[anim_name] = true
+		push_warning("[Player] Missing animation '%s' in SpriteFrames; falling back" % anim_name)
+	return false
+
+
+# The spin is a one-shot: once it ends, normal airborne animations take over.
+func _on_sprite_animation_finished() -> void:
+	if sprite.animation == SPIN_JUMP_ANIM:
+		is_spin_jumping = false
+
+
+func _play_anim(anim_name: String) -> void:
+	if sprite.animation != anim_name or not sprite.is_playing():
+		sprite.play(anim_name)
 
 
 ### --- Phase 1: Damage shim and handlers ---
@@ -553,7 +904,8 @@ func take_damage(amount: int, source = null) -> void:
 	knockback_lock_timer = knockback_lock_duration
 	# the knockback's upward speed must not be cut by releasing jump
 	is_jump_rising = false
-	
+	is_spin_jumping = false
+
 	# mark invulnerable and start timers
 	invulnerable = true
 	invul_timer = invulnerability_time
@@ -577,5 +929,7 @@ func _on_health_died() -> void:
 	# disable physics and input
 	set_physics_process(false)
 	velocity = Vector2.ZERO
-	# optional: play death animation or notify game manager
+	died.emit()
+	await get_tree().create_timer(reload_delay).timeout
+	SaveManager.restart_from_save()
 # End of player_rundas.gd

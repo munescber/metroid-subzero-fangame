@@ -5,10 +5,15 @@ class_name RadialProjectile
 const LIFETIME = 2.0
 
 @export var damage: int = 1
+## Drop override for when the player shoots this projectile down. Empty uses a table with
+## DEFAULT_DROP_CHANCE (lower than the enemy default, since a burst fires several at once).
+@export var drop_table: DropTable
+const DEFAULT_DROP_CHANCE := 0.2
 var direction: Vector2 = Vector2.RIGHT
 var speed: float = 100.0
 var shooter: Node = null
 var life_timer: float = LIFETIME
+var launch_delay: float = 0.0  # Seconds the projectile hovers (already pointing outward) before it flies
 
 # Fade animation
 @export var enable_fade_animation: bool = true
@@ -25,6 +30,10 @@ var hurtbox_grace_period: float = 0.15
 
 
 func _ready() -> void:
+	if drop_table == null:
+		drop_table = DropTable.new()
+		drop_table.drop_chance = DEFAULT_DROP_CHANCE
+
 	if sprite:
 		sprite.play("idle")
 	
@@ -56,6 +65,12 @@ func _physics_process(delta: float) -> void:
 		if hurtbox_grace_period <= 0.0 and hurtbox:
 			hurtbox.monitorable = true
 	
+	# Hover in place until this projectile's turn in the ring sweep. It stays live while held
+	# (it can hurt the player and be shot down); the lifetime only starts once it flies.
+	if launch_delay > 0.0:
+		launch_delay -= delta
+		return
+
 	velocity = direction * speed
 	var collision = move_and_collide(velocity * delta)
 	
@@ -73,7 +88,8 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 
 
-func launch(dir: Vector2, proj_speed: float, source: Node = null) -> void:
+func launch(dir: Vector2, proj_speed: float, source: Node = null, delay: float = 0.0) -> void:
+	launch_delay = delay
 	direction = dir.normalized()
 	speed = proj_speed
 	shooter = source
@@ -88,13 +104,28 @@ func launch(dir: Vector2, proj_speed: float, source: Node = null) -> void:
 		sprite.modulate.a = 1.0
 
 
-func receive_hit(_damage_amount: int, _source = null) -> void:
+func receive_hit(_damage_amount: int, source = null) -> void:
 	"""Called when hit by a player bullet's hitbox."""
-	initiate_fade()
+	_shot_down(source)
 
 
-func take_damage(_damage_amount: int, _source = null) -> void:
+func take_damage(_damage_amount: int, source = null) -> void:
 	"""Called by our own Hurtbox when hit by a player bullet."""
+	_shot_down(source)
+
+
+## Shot down: fades, and drops a pickup (rolled) only if the shot came from the player. Hits from
+## other enemies' projectiles still fade it but never drop, and neither do projectiles that fade on
+## their own (wall, player hit, lifetime). Only the first hit counts.
+func _shot_down(source = null) -> void:
+	if is_fading:
+		return
+	# The boss that fired this projectile can't affect it, e.g. its contact damage area while the
+	# projectile spawns inside or crosses the boss's body
+	if shooter != null and source == shooter:
+		return
+	if source is Node and source.is_in_group("player"):
+		DropManager.try_drop(self, drop_table)
 	initiate_fade()
 
 
@@ -114,6 +145,10 @@ func _on_area_entered(area: Area2D) -> void:
 	
 	# Check if hit the player
 	var parent = area.get_parent()
+
+	# Boss hazards never interact with each other (a burst crossing the fireballs)
+	if parent is BouncingFireball or parent is RadialProjectile:
+		return
 	var is_player = (parent and (parent.name == "Player" or 
 							parent.name == "player_rundas" or
 							parent.is_in_group("player") or
