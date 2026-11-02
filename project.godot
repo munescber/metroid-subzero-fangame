@@ -19,6 +19,11 @@ run/main_scene="uid://bpc73rb4lnnr7"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
 
+[autoload]
+
+AudioManager="*res://Scripts/Managers/audio_manager.gd"
+SaveManager="*res://Scripts/Managers/save_manager.gd"
+
 [display]
 
 window/size/viewport_width=256

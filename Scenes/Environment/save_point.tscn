@@ -1,0 +1,23 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Environment/save_point.gd" id="1_script"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_save"]
+size = Vector2(32, 48)
+
+[node name="SavePoint" type="Area2D"]
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("1_script")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_save")
+
+[node name="Message" type="Label" parent="."]
+offset_left = -48.0
+offset_top = -44.0
+offset_right = 48.0
+offset_bottom = -30.0
+theme_override_font_sizes/font_size = 8
+text = "GAME SAVED"
+horizontal_alignment = 1

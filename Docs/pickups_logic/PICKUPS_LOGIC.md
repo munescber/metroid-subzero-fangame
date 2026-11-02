@@ -16,6 +16,12 @@ A pickup with a child node named `AnimatedSprite2D` plays its `default` animatio
 from `Pickup._ready()`. HealthPickup and MissileRefill use it; MissileExpansion still uses a
 static `Sprite2D`. To change the art, edit the SpriteFrames; the collision shape is separate.
 
+## Charge-beam magnet
+While the player holds a charge (`player.attracts_pickups()` is true, i.e. `is_charging`),
+pickups with `magnet_enabled` within `magnet_radius` (64 px) move toward the player at
+`magnet_speed` (160 px/s). Enabled for HealthPickup and MissileRefill only; MissileExpansion
+never moves. Disabled during a drop's hop. All three values are Inspector exports on the pickup.
+
 ## Enemy drops
 `DropManager.try_drop(enemy, drop_table)` (static, `Scripts/Pickups/drop_manager.gd`) is called
 from each enemy's `_on_health_died` (atomic, ghost_covern, phantoon, rhinobug, zoomer).

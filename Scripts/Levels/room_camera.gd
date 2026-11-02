@@ -10,6 +10,7 @@ class_name RoomCamera
 ## Place this node in the editor so that the camera's preview rectangle covers the room's first
 ## screen region: the node position is the CENTER of that region. The viewport must be 256x240 (zoom 1).
 ## Rooms are RoomRegion nodes under this camera's parent; they decide which cells exist and connect.
+## During a slide everything under `freeze_root_path` is frozen (see _freeze_gameplay).
 ## See Docs/camera_logic/ and Docs/environment_logic/ROOM_SIZE_STANDARDS.md.
 
 signal transition_started(from_cell: Vector2i, to_cell: Vector2i)
@@ -26,6 +27,9 @@ signal transition_finished(cell: Vector2i)
 @export var entry_push: float = 24.0
 ## SMOOTH_FOLLOW only: how quickly the camera catches up with the player (0 = locked to the player).
 @export_range(0.0, 30.0, 0.5) var follow_catch_up_speed: float = 8.0
+## Node whose subtree is frozen during a slide. Empty = the scene root this camera was saved in.
+## Branches containing the camera stay running and are searched for frozen siblings instead.
+@export var freeze_root_path: NodePath
 @export var debug_enabled: bool = false
 
 var player: CharacterBody2D
@@ -90,6 +94,18 @@ func _collect_regions() -> void:
 	if debug_enabled:
 		print("[RoomCamera] regions: ", _cell_regions.size(), " cells")
 
+## Every RoomRegion this camera knows, each once.
+func get_regions() -> Array[RoomRegion]:
+	var regions: Array[RoomRegion] = []
+	for region in _cell_regions.values():
+		if not regions.has(region):
+			regions.append(region)
+	return regions
+
+## The RoomRegion covering `cell`, or null.
+func get_region_at(cell: Vector2i) -> RoomRegion:
+	return _cell_regions.get(cell)
+
 func _find_regions(node: Node) -> Array[RoomRegion]:
 	var found: Array[RoomRegion] = []
 	for child in node.get_children():
@@ -112,6 +128,19 @@ func _refusal_reason(from: Vector2i, dir: Vector2i) -> String:
 	if src != dest and not (src.is_connected_to(dest) or dest.is_connected_to(src)):
 		return "%s is not connected to %s" % [src.name, dest.name]
 	return ""
+
+## Puts the camera on the screen containing `world_position` without a slide (used when loading a
+## save). The caller moves the player. Does nothing if no region covers that position.
+func snap_to(world_position: Vector2) -> void:
+	var cell := Vector2i(((world_position - room_origin) / screen_size).floor())
+	var region: RoomRegion = _cell_regions.get(cell)
+	if region == null:
+		push_warning("[RoomCamera] snap_to: no region at cell %s." % cell)
+		return
+	current_cell = cell
+	current_region = region
+	global_position = _clamped_follow_position(region, world_position) if _is_smooth_follow(region) else _cell_center(cell)
+	_warned_invalid = false
 
 func _is_smooth_follow(region: RoomRegion) -> bool:
 	return region != null and region.camera_mode == RoomRegion.CameraMode.SMOOTH_FOLLOW
@@ -181,11 +210,11 @@ func _try_transition(dir: Vector2i) -> void:
 	var from_cell := current_cell
 	var start := global_position
 	var target_region: RoomRegion = _cell_regions[target]
-	_freeze_gameplay()
 	var player_start := player.global_position
 	var player_end := _entry_position(target_region, target, dir, player_start)
 	var end := _clamped_follow_position(target_region, player_end) if _is_smooth_follow(target_region) else _cell_center(target)
 	transition_started.emit(from_cell, target)
+	_freeze_gameplay()
 	if debug_enabled:
 		print("[RoomCamera] transition ", from_cell, " -> ", target, " camera ", start, " -> ", end)
 
@@ -227,12 +256,23 @@ func _safe_push(motion: Vector2) -> Vector2:
 		return Vector2.ZERO
 	return motion
 
-## Disables every sibling of this camera (enemies, projectiles, hazards, platforms, the player...)
-## except CanvasLayers, remembering each mode so it can be restored exactly.
+## Disables everything under the freeze root (the player, rooms, projectiles, platforms...) except
+## CanvasLayers, nodes in the `always_active` group and branches containing this camera, whose other
+## children are frozen instead. Runs after transition_started so a room activated by a listener is
+## frozen in its active state. Previous modes are remembered so they can be restored exactly.
 func _freeze_gameplay() -> void:
 	_frozen_modes.clear()
-	for node in get_parent().get_children():
-		if node == self or node is CanvasLayer:
+	var root: Node = get_node_or_null(freeze_root_path)
+	if root == null:
+		root = owner if owner != null else get_parent()
+	_freeze_children(root)
+
+func _freeze_children(parent: Node) -> void:
+	for node in parent.get_children():
+		if node == self or node is CanvasLayer or node.is_in_group(RoomRegion.ALWAYS_ACTIVE_GROUP):
+			continue
+		if node.is_ancestor_of(self):
+			_freeze_children(node)
 			continue
 		_frozen_modes[node] = node.process_mode
 		node.process_mode = Node.PROCESS_MODE_DISABLED

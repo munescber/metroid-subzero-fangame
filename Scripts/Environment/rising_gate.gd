@@ -21,6 +21,8 @@ signal opened
 @export_group("State")
 @export var start_open: bool = false
 
+## Stable id so the gate stays open after saving. Leave empty to never save it.
+@export var save_id: String = ""
 @export var debug_enabled: bool = false
 
 @onready var body: AnimatableBody2D = $Body
@@ -39,6 +41,21 @@ func _ready() -> void:
 	if start_open:
 		body.position = _open_local
 		is_open = true
+	if save_id != "":
+		add_to_group("saveable")
+
+func get_save_data() -> Dictionary:
+	return {"open": true} if is_open else {}
+
+## Skips the movement and leaves the gate open (used when loading a save).
+func load_save_data(data: Dictionary) -> void:
+	if not data.get("open", false):
+		return
+	if _tween:
+		_tween.kill()
+	body.position = _open_local
+	is_moving = false
+	is_open = true
 
 ## Called by ActivationButton. Does nothing once the gate is rising or open.
 func activate() -> void:

@@ -1,18 +1,26 @@
 [gd_scene format=3 uid="uid://j5gmhjrkkpwd"]
 
 [ext_resource type="Script" uid="uid://crgc76ccyqceh" path="res://Scripts/Player/player_rundas.gd" id="1_6t2vb"]
+[ext_resource type="AudioStream" uid="uid://myxo8jq31icp" path="res://Audio/SFX/Player/beam_bullet.wav" id="2_h8ma5"]
+[ext_resource type="AudioStream" uid="uid://b1rfp0u8x6kim" path="res://Audio/SFX/Player/charge_beam.wav" id="3_eksi1"]
 [ext_resource type="Texture2D" uid="uid://cpsb2035wakny" path="res://Spritesheets/Rundas/rundas_dash.png" id="3_jlvik"]
 [ext_resource type="Script" uid="uid://cjlps8ugi1jdq" path="res://Scripts/Common/hurtbox.gd" id="4_hurtbox"]
 [ext_resource type="Texture2D" uid="uid://dywn2v8xcaet5" path="res://Spritesheets/Rundas/rundas_hurt.png" id="4_jhyir"]
+[ext_resource type="AudioStream" uid="uid://dkqrd73we1jgj" path="res://Audio/SFX/Player/charge_beam_impact.wav" id="4_jincj"]
 [ext_resource type="Texture2D" uid="uid://4i2b1j16jrej" path="res://Spritesheets/Rundas/rundas_idle_2_2.png" id="5_0u5uq"]
 [ext_resource type="Texture2D" uid="uid://p3ycmh3urcty" path="res://Spritesheets/beams.png" id="5_beams"]
+[ext_resource type="AudioStream" uid="uid://ppi1rehj25jq" path="res://Scenes/Player/jump.wav" id="5_qr1w5"]
+[ext_resource type="AudioStream" uid="uid://dsftf1wlodsjm" path="res://Audio/SFX/Player/missile.wav" id="5_rqdc0"]
 [ext_resource type="Texture2D" uid="uid://ejp1o8rokjdy" path="res://Spritesheets/Rundas/rundas_jump_2_2.png" id="6_gk6dx"]
 [ext_resource type="Texture2D" uid="uid://cob4uc77oijuo" path="res://Spritesheets/Rundas/rundas_walk_2_2.png" id="6_jlvik"]
+[ext_resource type="AudioStream" uid="uid://dvop74vyipau" path="res://Audio/SFX/Player/SpinJump.wav" id="6_ythyg"]
 [ext_resource type="Texture2D" uid="uid://dho7x51lyftp0" path="res://Spritesheets/Rundas/rundas_jump_aim_up.png" id="7_gk6dx"]
 [ext_resource type="Texture2D" uid="uid://b2xitnmthsshm" path="res://Spritesheets/Rundas/rundas_idle_aim_up.png" id="7_jhyir"]
 [ext_resource type="Texture2D" uid="uid://btr2t5h7l2gav" path="res://Spritesheets/Rundas/rundas_idle_aim_diagonal_up.png" id="7_ks1b7"]
+[ext_resource type="AudioStream" uid="uid://5yq6mli4d2nx" path="res://Audio/SFX/Player/land_floor.wav" id="8_bmb2s"]
 [ext_resource type="Texture2D" uid="uid://boqn3j238eqrh" path="res://Spritesheets/Rundas/rundas_jump_aim_down.png" id="9_dey5f"]
 [ext_resource type="Texture2D" uid="uid://bqw7uqhkrlqb0" path="res://Spritesheets/Rundas/rundas_spin_jump.png" id="9_oikmp"]
+[ext_resource type="AudioStream" uid="uid://baijh1qunr7j4" path="res://Audio/SFX/Player/running.wav" id="9_ur3l4"]
 [ext_resource type="Texture2D" uid="uid://latjutj7ek3h" path="res://Spritesheets/Rundas/rundas_walk_aim_up.png" id="10_74mp2"]
 [ext_resource type="Texture2D" uid="uid://gm81assjdtv4" path="res://Spritesheets/Rundas/rundas_jump_aim_diagonal_up.png" id="11_7g0yx"]
 [ext_resource type="PackedScene" uid="uid://bl5a5h58kkgws" path="res://Scenes/UI/hud.tscn" id="11_hud"]
@@ -342,6 +350,14 @@ position = Vector2(1, 0)
 collision_layer = 2
 script = ExtResource("1_6t2vb")
 apex_gravity_multiplier = 0.7
+sfx_bullet = ExtResource("2_h8ma5")
+sfx_charge_loop = ExtResource("3_eksi1")
+sfx_charge_shot = ExtResource("4_jincj")
+sfx_jump = ExtResource("5_qr1w5")
+sfx_spin_jump = ExtResource("6_ythyg")
+sfx_missile = ExtResource("5_rqdc0")
+sfx_land = ExtResource("8_bmb2s")
+sfx_walk = ExtResource("9_ur3l4")
 knockback_x = 140.0
 knockback_y = 160.0
 

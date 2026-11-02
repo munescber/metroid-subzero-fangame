@@ -1,3 +1,5 @@
 # Godot 4+ specific ignores
 .godot/
 *.gd.uid
+# Local save slot written by SaveManager when run from the editor
+Saves/

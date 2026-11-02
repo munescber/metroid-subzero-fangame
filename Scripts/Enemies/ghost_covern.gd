@@ -267,10 +267,11 @@ func haunting_movement(delta: float) -> void:
 
 
 ## Velocity pushing this ghost away from other ghosts that are too close (stronger when closer).
+## Ghosts that are not processing (their room is deactivated) are ignored.
 func _separation_push() -> Vector2:
 	var push = Vector2.ZERO
 	for other in get_tree().get_nodes_in_group("ghost_covern"):
-		if other == self or not is_instance_valid(other) or other.is_dying:
+		if other == self or not is_instance_valid(other) or other.is_dying or not other.can_process():
 			continue
 		var offset: Vector2 = global_position - other.global_position
 		var dist = offset.length()

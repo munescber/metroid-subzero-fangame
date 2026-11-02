@@ -110,7 +110,7 @@ radius = 8.0
 [sub_resource type="CircleShape2D" id="HurtboxShape"]
 radius = 8.0
 
-[node name="Atomic" type="CharacterBody2D" unique_id=1232447307]
+[node name="Atomic" type="CharacterBody2D" unique_id=1232447307 groups=["respawnable"]]
 script = ExtResource("8_script")
 electric_field_duration = 1.0
 electric_field_damage = 10

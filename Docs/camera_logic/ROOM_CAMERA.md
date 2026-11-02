@@ -25,12 +25,19 @@ A camera with two behaviours, chosen per region by `RoomRegion.camera_mode`:
 | `transition_duration` | `1.0` | Seconds for a slide (sine in/out) |
 | `entry_push` | `24` | Pixels the player is carried into the new screen when no entry marker exists (skipped if a wall blocks it) |
 | `follow_catch_up_speed` | `8` | SMOOTH_FOLLOW only: how fast the camera catches up (0 = locked to the player) |
+| `freeze_root_path` | empty | Node whose subtree is frozen during a slide. Empty = the scene root the camera was saved in |
 | `debug_enabled` | `false` | Prints debug logs |
 
 ## Signals
 
-- `transition_started(from_cell, to_cell)`
-- `transition_finished(cell)`
+- `transition_started(from_cell, to_cell)`: emitted **before** gameplay is frozen, so a listener (`RoomManager`) can activate the destination room and have it frozen in its active state.
+- `transition_finished(cell)`: emitted after gameplay is unfrozen and `current_region` is updated.
+
+## Helpers
+
+- `get_regions()` returns every known `RoomRegion` once.
+- `get_region_at(cell)` returns the region covering a cell, or null.
+- `snap_to(world_position)` puts the camera on the screen containing a position without a slide and updates `current_cell` and `current_region`. It is used when loading a save, and the caller moves the player.
 
 ## How it works
 
@@ -38,11 +45,11 @@ A camera with two behaviours, chosen per region by `RoomRegion.camera_mode`:
 2. **Exit detection** (`_physics_process`): if the player's position leaves the current cell's rect, an exit direction is returned. Left/right take priority over up/down, so corner exits resolve over two transitions.
 3. **Validation** (`_refusal_reason`): a transition is refused if the current cell has no region, the target cell has no region, `allows_exit` returns false, or the two regions differ and aren't connected. The refusal is logged once, until the player is back inside the cell.
 4. **Transition** (`_try_transition`):
-   - sets `is_transitioning`, freezes gameplay, and emits `transition_started`
+   - sets `is_transitioning`, emits `transition_started`, then freezes gameplay
    - tweens the camera (pixel-rounded) and the player together to the destination
    - the player's destination is the region's entry marker, or else the `entry_push` offset
    - on finish, snaps both to their final positions, updates `current_cell`, unfreezes, and emits `transition_finished`
-5. **Freezing**: every sibling of the camera except itself and `CanvasLayer`s gets `process_mode = DISABLED`. Previous modes are saved and restored exactly afterwards. This includes the player, enemies, projectiles and hazards.
+5. **Freezing** (`_freeze_gameplay`): every child of the freeze root gets `process_mode = DISABLED`, except `CanvasLayer`s (HUD, CRT filter), nodes in the `always_active` group, and any branch that contains the camera. A branch containing the camera keeps running, and its other children are frozen instead, so the camera can be nested anywhere (for example under `Camera_Regions`). Autoloads are not in the scene and are never touched. The player, rooms, player projectiles and platforms are all frozen this way; rooms that are already deactivated stay disabled. Previous modes are saved and restored exactly after the slide.
 
 See `ROOM_REGION.md` for how rooms are defined.
 

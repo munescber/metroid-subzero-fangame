@@ -6,6 +6,8 @@ signal health_changed(current_hp: int, max_hp: int)
 signal missiles_changed(current_ammo: int, max_ammo: int)
 ## Emitted once, when missiles are first unlocked.
 signal missiles_acquired
+## Emitted when health reaches zero, before the level reloads from the last save.
+signal died
 
 # ==================================================
 # Player Movement Settings
@@ -62,6 +64,23 @@ var is_spin_jumping: bool = false
 # Terminal downward speed in px/s, applied to normal airborne falling only.
 @export var max_fall_speed: float = 400.0
 
+# Sound effects (played through AudioManager). Leave empty for silence.
+@export_group("Sounds")
+@export var sfx_bullet: AudioStream
+## Loops while the shoot key is held charging; stops on release or when the beam fires.
+@export var sfx_charge_loop: AudioStream
+@export var sfx_charge_shot: AudioStream
+## Played once on a standing/normal jump (spin jumps use sfx_spin_jump instead).
+@export var sfx_jump: AudioStream
+## Loops for as long as the spin jump lasts (until the spin ends, landing, a shot, dash or hit).
+@export var sfx_spin_jump: AudioStream
+@export var sfx_missile: AudioStream
+## Played once when touching the floor after being airborne.
+@export var sfx_land: AudioStream
+## Loops while walking on the floor; stops when standing still, airborne or dashing.
+@export var sfx_walk: AudioStream
+@export_group("")
+
 # Reference to the AnimatedSprite2D node
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
 @onready var muzzle = $Muzzle
@@ -79,6 +98,11 @@ var missile_scene: PackedScene = preload("res://Scenes/Player/missile.tscn")
 # a normal bullet, or the charge beam if held past charge_time_required.
 @export var charge_time_required: float = 0.8
 var is_charging: bool = false
+var _charge_loop_player: AudioStreamPlayer
+var _spin_loop_player: AudioStreamPlayer
+var _walk_loop_player: AudioStreamPlayer
+var _was_on_floor: bool = true
+const WALK_SFX_MIN_SPEED := 10.0
 var is_charged: bool = false
 var charge_time: float = 0.0
 var aim_angle: float = 0.0
@@ -102,7 +126,12 @@ var health_comp: HealthComponent = null
 
 # Health and damage tuning
 @export var max_health: int = 100
+## Seconds between dying and the level reloading from the last save.
+@export var reload_delay: float = 1.5
 @export var debug_enabled: bool = false
+
+## Id under which SaveManager stores this player's stats.
+var save_id: String = "player"
 
 # Missiles: unlock state and ammo are independent (unlocked with 0 ammo can't fire).
 ## Whether missile shooting is unlocked at start (set true to test without a pickup).
@@ -200,9 +229,12 @@ func _update_aim_press_order() -> void:
 # Initialization
 # ==================================================
 
+var _projectile_parent: Node
+
 func _ready():
 	# Registered in code (not saved in the scene) so the group survives scene re-saves.
 	add_to_group("player")
+	add_to_group("saveable")
 	sprite.play("idle")
 	sprite.animation_finished.connect(_on_sprite_animation_finished)
 	_update_muzzle_position()
@@ -238,6 +270,7 @@ func _physics_process(delta):
 
 	hurt_timer = maxf(hurt_timer - delta, 0.0)
 	update_animation()
+	_update_spin_loop()
 
 	# invulnerability handling (blink + timer)
 	if invulnerable:
@@ -252,6 +285,7 @@ func _physics_process(delta):
 			sprite.modulate = _original_modulate
 
 	move_and_slide()
+	_update_ground_sfx()
 
 	# the wall check is skipped during the windup, since no dash movement has happened yet
 	if is_dashing and dash_windup_timer <= 0.0 and is_on_wall():
@@ -279,19 +313,33 @@ func handle_shoot(delta):
 	_update_charge(delta)
 
 
+func _play_sfx(stream: AudioStream) -> void:
+	AudioManager.play_sfx_2d(stream, global_position)
+
+
 func _fire_bullet() -> void:
 	shoot_timer = SHOOT_COOLDOWN
 	_spawn_projectile(bullet_scene)
+	_play_sfx(sfx_bullet)
 
 
 func _fire_charge_beam() -> void:
 	_spawn_projectile(charge_beam_scene)
+	_play_sfx(sfx_charge_shot)
 
 
 # Firing ends the spin for the rest of the jump so the shot leaves a normal pose
 # (jump/fall) instead of a spinning body. A later jump picks its style again.
 func _cancel_spin_for_shot() -> void:
 	is_spin_jumping = false
+
+
+## Shots go to the level's `projectiles` container (cleared by RoomManager between rooms),
+## or to the level root when the level has none.
+func _get_projectile_parent() -> Node:
+	if not is_instance_valid(_projectile_parent):
+		_projectile_parent = get_tree().get_first_node_in_group("projectiles")
+	return _projectile_parent if _projectile_parent != null else get_parent()
 
 
 func _spawn_projectile(scene: PackedScene) -> void:
@@ -302,13 +350,14 @@ func _spawn_projectile(scene: PackedScene) -> void:
 	projectile.start(final_dir, self)
 	# spawn slightly ahead so it doesn't immediately collide with player
 	projectile.global_position = shot[0]
-	get_parent().add_child(projectile)
+	_get_projectile_parent().add_child(projectile)
 
 
 func _start_charge() -> void:
 	is_charging = true
 	is_charged = false
 	charge_time = 0.0
+	_start_charge_loop()
 
 
 func _update_charge(delta: float) -> void:
@@ -337,7 +386,79 @@ func _update_charge(delta: float) -> void:
 	_update_charge_visual()
 
 
+# Landing one-shot and walking loop, both driven by the post-move floor state.
+func _update_ground_sfx() -> void:
+	var on_floor := is_on_floor()
+	if on_floor and not _was_on_floor:
+		_play_sfx(sfx_land)
+	_was_on_floor = on_floor
+
+	var walking := on_floor and not is_dashing and absf(velocity.x) > WALK_SFX_MIN_SPEED
+	if walking and sfx_walk != null:
+		if _walk_loop_player == null:
+			_walk_loop_player = AudioStreamPlayer.new()
+			_walk_loop_player.bus = AudioManager.BUS_SFX
+			# restart on finish so it loops even if the imported stream has looping off
+			_walk_loop_player.finished.connect(_on_walk_loop_finished)
+			add_child(_walk_loop_player)
+			_walk_loop_player.stream = sfx_walk
+		if not _walk_loop_player.playing:
+			_walk_loop_player.play()
+	elif _walk_loop_player and _walk_loop_player.playing:
+		_walk_loop_player.stop()
+
+
+func _on_walk_loop_finished() -> void:
+	if is_on_floor() and absf(velocity.x) > WALK_SFX_MIN_SPEED:
+		_walk_loop_player.play()
+
+
+# Follows is_spin_jumping, which is cleared from several places, so it is polled once per frame.
+func _update_spin_loop() -> void:
+	if is_spin_jumping and sfx_spin_jump != null:
+		if _spin_loop_player == null:
+			_spin_loop_player = AudioStreamPlayer.new()
+			_spin_loop_player.bus = AudioManager.BUS_SFX
+			# restart on finish so it loops even if the imported stream has looping off
+			_spin_loop_player.finished.connect(_on_spin_loop_finished)
+			add_child(_spin_loop_player)
+			_spin_loop_player.stream = sfx_spin_jump
+		if not _spin_loop_player.playing:
+			_spin_loop_player.play()
+	elif _spin_loop_player and _spin_loop_player.playing:
+		_spin_loop_player.stop()
+
+
+func _on_spin_loop_finished() -> void:
+	if is_spin_jumping:
+		_spin_loop_player.play()
+
+
+func _start_charge_loop() -> void:
+	if sfx_charge_loop == null:
+		return
+	if _charge_loop_player == null:
+		_charge_loop_player = AudioStreamPlayer.new()
+		_charge_loop_player.bus = AudioManager.BUS_SFX
+		# restart on finish so it loops even if the imported stream has looping off
+		_charge_loop_player.finished.connect(_on_charge_loop_finished)
+		add_child(_charge_loop_player)
+	_charge_loop_player.stream = sfx_charge_loop
+	_charge_loop_player.play()
+
+
+func _on_charge_loop_finished() -> void:
+	if is_charging:
+		_charge_loop_player.play()
+
+
+func _stop_charge_loop() -> void:
+	if _charge_loop_player:
+		_charge_loop_player.stop()
+
+
 func _reset_charge() -> void:
+	_stop_charge_loop()
 	is_charging = false
 	is_charged = false
 	charge_time = 0.0
@@ -381,6 +502,12 @@ func increase_missile_capacity(amount: int) -> void:
 	missile_ammo += amount
 
 
+## True while the player is holding a charge; health and missile pickups are
+## pulled toward the player (see Pickup magnet exports).
+func attracts_pickups() -> bool:
+	return is_charging
+
+
 ## Returns the HP actually restored (0 when full, dead, or amount <= 0).
 func heal(amount: int) -> int:
 	if health_comp:
@@ -407,6 +534,35 @@ func increase_max_health(amount: int) -> void:
 		health_comp.heal(amount)
 
 
+## Full health and full missiles (used by save points).
+func restore_all() -> void:
+	if health_comp:
+		health_comp.heal(health_comp.max_health)
+	restore_missiles(missile_max_ammo)
+
+
+func get_save_data() -> Dictionary:
+	if health_comp == null:
+		return {}
+	return {
+		"max_health": health_comp.max_health,
+		"health": health_comp.current_health,
+		"missiles_unlocked": missiles_unlocked,
+		"missile_max_ammo": missile_max_ammo,
+		"missile_ammo": missile_ammo,
+	}
+
+
+func load_save_data(data: Dictionary) -> void:
+	if health_comp and data.has("max_health"):
+		health_comp.set_max_health(int(data["max_health"]))
+		health_comp.current_health = clampi(int(data.get("health", health_comp.max_health)), 1, health_comp.max_health)
+		health_comp.health_changed.emit(health_comp.current_health, health_comp.max_health)
+	missiles_unlocked = bool(data.get("missiles_unlocked", missiles_unlocked))
+	missile_max_ammo = int(data.get("missile_max_ammo", missile_max_ammo))
+	missile_ammo = int(data.get("missile_ammo", missile_ammo))
+
+
 func _try_fire_missile() -> void:
 	if not missiles_unlocked:
 		return
@@ -428,7 +584,8 @@ func _try_fire_missile() -> void:
 	missile.start(final_dir, self)
 	# spawn slightly ahead so it doesn't immediately collide with player
 	missile.global_position = shot[0]
-	get_parent().add_child(missile)
+	_get_projectile_parent().add_child(missile)
+	_play_sfx(sfx_missile)
 
 	if debug_enabled:
 		print_debug("[Player] Missiles left: %d" % missile_ammo)
@@ -526,7 +683,7 @@ func _end_dash() -> void:
 
 func _spawn_afterimage() -> void:
 	var afterimage: DashAfterimage = dash_afterimage_scene.instantiate()
-	get_parent().add_child(afterimage)
+	_get_projectile_parent().add_child(afterimage)
 	afterimage.setup(sprite)
 
 
@@ -554,6 +711,8 @@ func handle_jump():
 		is_spin_jumping = abs(velocity.x) >= spin_jump_speed_threshold
 		velocity.y = jump_velocity * (spin_jump_velocity_multiplier if is_spin_jumping else 1.0)
 		is_jump_rising = true
+		if not is_spin_jumping:
+			_play_sfx(sfx_jump)
 	elif is_on_floor():
 		is_spin_jumping = false
 
@@ -770,5 +929,7 @@ func _on_health_died() -> void:
 	# disable physics and input
 	set_physics_process(false)
 	velocity = Vector2.ZERO
-	# optional: play death animation or notify game manager
+	died.emit()
+	await get_tree().create_timer(reload_delay).timeout
+	SaveManager.restart_from_save()
 # End of player_rundas.gd

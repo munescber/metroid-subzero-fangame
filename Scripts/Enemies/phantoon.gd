@@ -4,6 +4,8 @@ class_name Phantoon
 
 # Debug toggle
 @export var debug_enabled: bool = false
+## Stable id so the boss stays defeated after saving.
+@export var save_id: String = ""
 
 # Feature Toggles (disable specific attacks/states for testing)
 @export_category("Feature Toggles")
@@ -83,10 +85,15 @@ var intangible_warning_timer: float = 0.0
 @export var phase_2_burst_speed: float = 150.0
 @export var phase_1_burst_rotation: float = 0.0
 @export var phase_2_burst_rotation: float = -PI / 2.0  # Straight up: the first projectile is at 0 degrees, then every 45
-@export var phase_1_bounce_count: int = 4
-@export var phase_2_bounce_count: int = 6
-@export var bounce_projectile_speed: float = 50.0
+@export var phase_1_bounce_count: int = 6
+@export var phase_2_bounce_count: int = 8
+@export var bounce_spawn_height: float = 40.0  # How far above the boss the fireball curtain spawns
+@export var bounce_spacing: float = 20.0  # Horizontal distance between fireballs in the curtain
+@export var bounce_horizontal_drift: float = 50.0  # Max random sideways speed (px/s) when a fireball falls; 0 = straight down
+@export var burst_hold_duration: float = 0.5  # Seconds the burst ring hovers before every projectile launches at once
 @export var bounce_gravity: float = 300.0
+@export var bounce_release_delay: float = 0.12  # Seconds between each fireball starting to fall (the curtain sweep)
+var bounce_sweep_direction: float = 1.0  # 1.0 = left to right, -1.0 = right to left; flips every cast
 
 # Death drops: guaranteed, not rolled. They scatter horizontally around the boss.
 @export_category("Death Drops")
@@ -100,6 +107,8 @@ const DAMAGE_FLASH_COLOR := Color(1, 0.5, 0.5, 1)
 const PHASE_FLASH_COLOR := Color(2, 2, 2, 1)
 const PHASE_FLASH_DURATION: float = 0.2
 const WINDUP_COLOR := Color(1.6, 1.2, 0.6, 1)  # Warm yellow glow before any attack
+const FIREBALL_WALL_MARGIN: float = 8.0  # Gap kept between a fireball spawn point and a wall or ceiling
+const FIREBALL_MIN_SPAWN_DISTANCE: float = 14.0  # Closer to the boss than this, a blocked fireball is skipped
 const DASH_MARKER_COLOR := Color(1, 1, 1, 0.8)
 var phase_flash_timer: float = 0.0
 var _dash_marker_visible: bool = false
@@ -115,6 +124,8 @@ var death_duration: float = 0.5  # Time to fade out
 
 func _ready() -> void:
 	_body_layer = collision_layer
+	if save_id != "":
+		add_to_group("saveable")
 
 	# Initialize health
 	health.max_health = max_health
@@ -357,8 +368,8 @@ func _set_phased(phased: bool) -> void:
 
 func update_attack_burst_state(delta: float) -> void:
 	state_timer += delta
-	# Stay in attack state for 1 second, then return to orbit
-	if state_timer >= 1.0:
+	# Stay in attack state for 1 second (longer if the ring is held longer), then return to orbit
+	if state_timer >= maxf(1.0, burst_hold_duration + 0.3):
 		current_state = BossState.ORBIT
 		state_timer = 0.0
 		attack_timer = 0.0
@@ -373,6 +384,10 @@ func update_attack_bounce_state(delta: float) -> void:
 		attack_timer = 0.0
 
 
+func _current_burst_count() -> int:
+	return burst_projectile_count if phase == 1 else phase_2_burst_count
+
+
 func spawn_burst_attack() -> void:
 	if debug_enabled:
 		print_debug("[Phantoon] Spawning radial burst attack!")
@@ -384,7 +399,7 @@ func spawn_burst_attack() -> void:
 
 	var projectile_speed = phase_1_burst_speed if phase == 1 else phase_2_burst_speed
 	var rotation_offset = phase_1_burst_rotation if phase == 1 else phase_2_burst_rotation
-	var count = burst_projectile_count if phase == 1 else phase_2_burst_count
+	var count = _current_burst_count()
 	var angle_step = TAU / count
 
 	for i in range(count):
@@ -396,9 +411,10 @@ func spawn_burst_attack() -> void:
 		get_parent().add_child(projectile)
 		projectile.global_position = global_position + direction * burst_spawn_offset
 
-		# Configure projectile
+		# Configure projectile. The whole ring spawns now, held pointing outward, and every
+		# projectile launches together once the hold ends, so the player can see where they will come from.
 		if projectile.has_method("launch"):
-			projectile.launch(direction, projectile_speed, self)
+			projectile.launch(direction, projectile_speed, self, burst_hold_duration)
 		elif projectile.has_method("start"):
 			projectile.start(direction, self)
 
@@ -414,15 +430,26 @@ func spawn_bounce_attack() -> void:
 
 	var fireball_count = phase_1_bounce_count if phase == 1 else phase_2_bounce_count
 
-	# Create evenly spaced spawn points below the boss
-	# For example, if fireball_count = 5, they spawn at: -40, -20, 0, +20, +40 units horizontally
-	var spacing = 20.0  # Distance between each fireball
+	# Create evenly spaced spawn points above the boss, forming a curtain
+	# For example, if fireball_count = 5 and bounce_spacing = 20, they spawn at: -40, -20, 0, +20, +40 horizontally
+	var spacing = bounce_spacing
 	var start_offset = -(fireball_count - 1) * spacing / 2.0  # Center the pattern
+	var space_state = get_world_2d().direct_space_state
 
 	for i in range(fireball_count):
 		# Calculate horizontal offset for this fireball
 		var offset_x = start_offset + (i * spacing)
-		var spawn_pos = global_position + Vector2(offset_x, 40.0)
+		var spawn_pos = global_position + Vector2(offset_x, -bounce_spawn_height)
+
+		# A ceiling or wall between the boss and this spot would destroy the fireball on its first
+		# move (a non-floor collision), so pull it back from whatever is in the way, or skip it.
+		var ray = PhysicsRayQueryParameters2D.create(global_position, spawn_pos, 1)  # World layer
+		var blocked = space_state.intersect_ray(ray)
+		if not blocked.is_empty():
+			var toward_spawn = (spawn_pos - global_position).normalized()
+			spawn_pos = blocked.position - toward_spawn * FIREBALL_WALL_MARGIN
+			if global_position.distance_to(spawn_pos) < FIREBALL_MIN_SPAWN_DISTANCE:
+				continue
 
 		var fireball = bounce_projectile_scene.instantiate()
 		get_parent().add_child(fireball)
@@ -430,7 +457,12 @@ func spawn_bounce_attack() -> void:
 
 		# Configure fireball
 		if fireball.has_method("setup"):
-			fireball.setup(bounce_gravity, bounce_projectile_speed, self)
+			# All fireballs spawn now; each starts falling after its turn in the sweep
+			var sweep_order = i if bounce_sweep_direction > 0.0 else fireball_count - 1 - i
+			fireball.setup(bounce_gravity, bounce_horizontal_drift, self, sweep_order * bounce_release_delay)
+
+	# Next cast sweeps the other way so the player can't just wait on one side
+	bounce_sweep_direction *= -1.0
 
 
 # ============================================================================
@@ -483,7 +515,18 @@ func _on_health_damaged(amount: int, new_health: int) -> void:
 	damage_flash_timer.start(0.12)
 
 
+## A defeated boss removes itself, so it reports through SaveManager.set_flag() instead.
+func get_save_data() -> Dictionary:
+	return {}
+
+func load_save_data(data: Dictionary) -> void:
+	if data.get("defeated", false):
+		queue_free()
+
+
 func _on_health_died() -> void:
+	if save_id != "":
+		SaveManager.set_flag(save_id, {"defeated": true})
 	DropManager.drop_guaranteed(self, death_health_drops, death_missile_drops, death_drop_spread, death_drop_lifetime)
 	if debug_enabled:
 		print_debug("[Phantoon] Boss defeated!")

@@ -8,8 +8,12 @@ class_name MissileRefill
 ## Ammo restored on collection.
 @export_range(1, 999, 1, "or_greater") var refill_amount: int = 5
 
+func _init() -> void:
+	magnet_enabled = true
+
 func _try_collect(body: Node) -> bool:
 	if not body.has_method("restore_missiles") or not body.missiles_unlocked:
 		return false
 	body.restore_missiles(refill_amount)  # clamped by the player; may restore 0 when full
+	_play_pickup_sound()
 	return true

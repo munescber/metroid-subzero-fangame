@@ -1034,7 +1034,6 @@ position = Vector2(41, -3)
 position = Vector2(473, -122)
 orbit_radius = 25.0
 max_health = 20
-phase_1_bounce_count = 5
 
 [node name="Covern" parent="Enemies" unique_id=1365786692 instance=ExtResource("5_dv0up")]
 position = Vector2(243, -86)

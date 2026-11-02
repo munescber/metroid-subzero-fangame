@@ -63,7 +63,7 @@ animations = [{
 "speed": 3.0
 }]
 
-[node name="zoomer" type="CharacterBody2D" unique_id=775280954]
+[node name="zoomer" type="CharacterBody2D" unique_id=775280954 groups=["respawnable"]]
 collision_layer = 4
 script = ExtResource("1_zoomer")
 

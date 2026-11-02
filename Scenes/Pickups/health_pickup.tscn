@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://bxvbvk2i3af2x"]
 
 [ext_resource type="Script" uid="uid://cs466rvovs3ti" path="res://Scripts/Pickups/health_pickup.gd" id="1_script"]
+[ext_resource type="AudioStream" uid="uid://bw4oue1of3iff" path="res://Audio/SFX/Pickups/msz_average_pickup.wav" id="2_pkvu4"]
 [ext_resource type="Texture2D" uid="uid://b3gikucofefs3" path="res://Tilesets/miscellaneous.png" id="2_tex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_item"]
@@ -39,6 +40,7 @@ animations = [{
 collision_layer = 0
 collision_mask = 2
 script = ExtResource("1_script")
+pickup_sound = ExtResource("2_pkvu4")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=794353508]
 visible = false

@@ -12,4 +12,5 @@ func _try_collect(body: Node) -> bool:
 	if not body.has_method("collect_missile_expansion"):
 		return false
 	body.collect_missile_expansion(expansion_amount)
+	_play_pickup_sound()
 	return true

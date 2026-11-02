@@ -102,14 +102,23 @@ In `ATTACK_WINDUP` the boss holds still for `attack_telegraph_duration` (0.4s) w
 - **Phase 1:** `burst_projectile_count` (6) `RadialProjectile` instances in an evenly spaced ring, offset by `phase_1_burst_rotation` (0, so the first one points right).
 - **Phase 2:** `phase_2_burst_count` (8) projectiles, one every 45°. `phase_2_burst_rotation` is -90° (`-PI / 2`), so the first projectile points straight up (0°) and the rest follow every 45° around the ring.
 - The angle step is `TAU / count`, so the ring stays even if you change the count.
+- **Held ring, launched together:** after the yellow windup glow, the whole ring spawns at once, held in place and already pointing outward, so the player can see where each projectile will come from. After `burst_hold_duration` (0.5s) **every projectile launches at the same moment**, with no order. `launch(dir, speed, source, delay)` carries the delay (the same for all), and `launch_delay` counts down in the projectile's `_physics_process`, which skips movement and the lifetime timer until it reaches 0.
+- **Live while held:** a hovering projectile is fully active. It can hurt the player and be shot down for a drop. Only its flight is delayed.
+- `ATTACK_BURST` normally lasts 1.0s. If the hold is longer than 0.7s (`burst_hold_duration + 0.3`), the state lasts that long instead, so the boss stays still until the ring has launched.
 - Each projectile spawns at `global_position + direction * burst_spawn_offset` (24px outside the boss's own body by default) so it doesn't visually spawn inside the boss sprite.
 - Speed is `phase_1_burst_speed` (100) or `phase_2_burst_speed` (150) depending on phase.
 - Projectiles fly in a straight line and self-destruct (fade) on hitting a wall, the player, or after their lifetime expires.
 - The player can shoot them down. A projectile shot down this way has a chance to drop a pickup (see [Projectile drops](#projectile-drops)).
 
 ### Bouncing Fireballs (`spawn_bounce_attack`)
-- Spawns `phase_1_bounce_count` (4) or `phase_2_bounce_count` (6) `BouncingFireball` instances in a horizontal line 40px below the boss, evenly spaced 20px apart and centered under the boss.
-- Each fireball falls under `bounce_gravity` and bounces off floors up to `MAX_BOUNCES` (5) times, losing speed each bounce, before self-destructing.
+- Spawns `phase_1_bounce_count` (6) or `phase_2_bounce_count` (8) `BouncingFireball` instances in a horizontal line `bounce_spawn_height` (40px) **above** the boss, evenly spaced `bounce_spacing` (20px) apart and centered over the boss. The curtain falls from above, which gives the player a longer fall time to react.
+- **Walls and ceilings:** a non-floor collision destroys a fireball on its first move, so each spawn point is checked with a ray from the boss to that point (World layer). If something is in the way, the point is pulled back `FIREBALL_WALL_MARGIN` (8px) from it. If that leaves it closer than `FIREBALL_MIN_SPAWN_DISTANCE` (14px) to the boss, that fireball is skipped. Near a low ceiling the curtain bends under it, and some fireballs may be missing.
+- **No self-collision:** fireballs pass through the boss that fired them. Their bodies only collide with the world, and their hitbox ignores the boss's hurtbox (`shooter`). The boss's `ContactDamage` area is a `Hitbox` that calls `receive_hit` on any hurtbox it overlaps, so `_shot_down()` also ignores any hit whose `source` is the shooter. Without that, fireballs falling through the boss's body (the middle ones, under the curtain) faded when they touched its contact area. Burst projectiles have the same exception.
+- **Curtain sweep:** all fireballs spawn at once, but each hovers in place for `sweep_order * bounce_release_delay` (0.12s per fireball) before it starts to fall. The row drops from one end to the other like a wave. `setup(gravity, speed, source, delay)` carries the delay, and `release_delay` counts down in the fireball's `_physics_process`, which skips gravity and movement until it reaches 0.
+- **Alternating direction:** `bounce_sweep_direction` flips after every cast. One cast sweeps left to right, the next right to left, so the player can't just wait on one side. The first cast of a fight is left to right.
+- **Live while held:** a hovering fireball is fully active. It can hurt the player and can be shot down for a drop. Only its fall is delayed.
+- The sweep fits inside the 2s `ATTACK_BOUNCE` state: the last fireball of 6 starts falling after about 0.6s.
+- Each fireball falls under `bounce_gravity` and bounces off floors up to `MAX_BOUNCES` (5) times, losing speed each bounce, before self-destructing. Sideways drift is random up to `bounce_horizontal_drift` (50 px/s) and applied when the fireball is released. Set it to 0 for fireballs that fall straight down in clean columns.
 - Fireballs can also be shot down for a drop.
 
 ### Projectile drops
@@ -167,6 +176,11 @@ All default to `true`, meant to be disabled individually for isolated testing:
 
 | Export | Default |
 |---|---|
+| `bounce_release_delay` | 0.12 |
+| `burst_hold_duration` | 0.5 |
+| `phase_1_bounce_count` / `phase_2_bounce_count` | 6 / 8 |
+| `bounce_spawn_height` / `bounce_spacing` | 40 / 20 |
+| `bounce_horizontal_drift` | 50 (replaces the old `bounce_projectile_speed`, which only controlled this) |
 | `phase_2_burst_count` | 8 |
 | `phase_2_burst_rotation` | -PI/2 (straight up) |
 | `death_health_drops` / `death_missile_drops` | 10 / 10 |

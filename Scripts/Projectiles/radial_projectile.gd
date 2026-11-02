@@ -13,6 +13,7 @@ var direction: Vector2 = Vector2.RIGHT
 var speed: float = 100.0
 var shooter: Node = null
 var life_timer: float = LIFETIME
+var launch_delay: float = 0.0  # Seconds the projectile hovers (already pointing outward) before it flies
 
 # Fade animation
 @export var enable_fade_animation: bool = true
@@ -64,6 +65,12 @@ func _physics_process(delta: float) -> void:
 		if hurtbox_grace_period <= 0.0 and hurtbox:
 			hurtbox.monitorable = true
 	
+	# Hover in place until this projectile's turn in the ring sweep. It stays live while held
+	# (it can hurt the player and be shot down); the lifetime only starts once it flies.
+	if launch_delay > 0.0:
+		launch_delay -= delta
+		return
+
 	velocity = direction * speed
 	var collision = move_and_collide(velocity * delta)
 	
@@ -81,7 +88,8 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 
 
-func launch(dir: Vector2, proj_speed: float, source: Node = null) -> void:
+func launch(dir: Vector2, proj_speed: float, source: Node = null, delay: float = 0.0) -> void:
+	launch_delay = delay
 	direction = dir.normalized()
 	speed = proj_speed
 	shooter = source
@@ -111,6 +119,10 @@ func take_damage(_damage_amount: int, source = null) -> void:
 ## their own (wall, player hit, lifetime). Only the first hit counts.
 func _shot_down(source = null) -> void:
 	if is_fading:
+		return
+	# The boss that fired this projectile can't affect it, e.g. its contact damage area while the
+	# projectile spawns inside or crosses the boss's body
+	if shooter != null and source == shooter:
 		return
 	if source is Node and source.is_in_group("player"):
 		DropManager.try_drop(self, drop_table)

@@ -22,6 +22,7 @@ var bounce_count: int = 0
 var life_timer: float = LIFETIME
 var has_hit_player: bool = false
 var shooter: Node = null  # The boss that fired this; its hurtbox is never hit by its own fireballs
+var release_delay: float = 0.0  # Seconds the fireball hovers in place before it starts falling
 var spawn_grace_period: float = 0.15  # Don't collide for first 0.15 seconds after spawn
 
 # Fade animation
@@ -78,6 +79,12 @@ func _physics_process(delta: float) -> void:
 	if spawn_grace_period <= 0.0 and hurtbox and not hurtbox.monitorable:
 		hurtbox.monitorable = true
 	
+	# Hover in place until this fireball's turn in the curtain sweep. It stays live while held
+	# (it can hurt the player and be shot down); only its fall is delayed.
+	if release_delay > 0.0:
+		release_delay -= delta
+		return
+
 	# Apply gravity
 	velocity.y += gravity * delta
 	
@@ -118,8 +125,9 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 
 
-func setup(gravity_val: float, speed_val: float, source: Node = null) -> void:
+func setup(gravity_val: float, speed_val: float, source: Node = null, delay: float = 0.0) -> void:
 	shooter = source
+	release_delay = delay
 	gravity = gravity_val
 	initial_speed = speed_val
 	horizontal_velocity = randf_range(-initial_speed, initial_speed)
@@ -181,6 +189,10 @@ func take_damage(_damage_amount: int, source = null) -> void:
 ## their own (hit the player, max bounces, wall). Only the first hit counts.
 func _shot_down(source = null) -> void:
 	if is_fading:
+		return
+	# The boss that fired this fireball can't affect it, e.g. its contact damage area while the
+	# fireball falls through the boss's body
+	if shooter != null and source == shooter:
 		return
 	if source is Node and source.is_in_group("player"):
 		DropManager.try_drop(self, drop_table)
