@@ -87,9 +87,10 @@ radius = 8.0
 [node name="RadialProjectile" type="CharacterBody2D" unique_id=1564337478]
 collision_layer = 8
 script = ExtResource("1_radial")
-damage = 5
+damage = 10
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1703456170]
+scale = Vector2(1.5, 1)
 sprite_frames = SubResource("RadialProjectileSpriteFrames")
 animation = &"fade"
 

@@ -8,6 +8,8 @@ extends Node
 ##   AudioManager.play_sfx(stream)                       # non-positional, SFX bus
 ##   AudioManager.play_sfx_2d(stream, global_position)   # positional, SFX bus
 ##   AudioManager.play_ui(stream)                        # non-positional, UI bus
+##   AudioManager.play_music(stream)                     # looping, Music bus, survives scene changes
+##   AudioManager.play_jingle(stream)                    # one-shot cue over the music (ducks it, never restarts it)
 ## Optional args: volume_db, pitch_scale, bus.
 
 const BUS_MASTER := &"Master"
@@ -22,6 +24,11 @@ const MAX_POOL_SIZE := 64
 
 var _players: Array[AudioStreamPlayer] = []
 var _players_2d: Array[AudioStreamPlayer2D] = []
+var _music_player: AudioStreamPlayer
+var _jingle_player: AudioStreamPlayer
+## True while the background music is lowered under a jingle; _duck_base_db is the volume to restore.
+var _ducked: bool = false
+var _duck_base_db: float = 0.0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -68,6 +75,74 @@ func stop_all() -> void:
 		p.stop()
 	for p in _players_2d:
 		p.stop()
+
+## Plays looping background music on the Music bus. The player is owned by this autoload, so
+## music carries on across scene changes; asking for the track that is already playing does
+## nothing (no restart), and a different track replaces it. Null stops the music.
+func play_music(stream: AudioStream, volume_db: float = 0.0) -> void:
+	if stream == null:
+		stop_music()
+		return
+	_ensure_music_player()
+	_music_player.volume_db = volume_db
+	_ducked = false  # the caller's volume wins over a running duck
+	if _music_player.stream == stream and _music_player.playing:
+		return
+	if "loop" in stream:
+		stream.loop = true
+	_music_player.stream = stream
+	_music_player.play()
+
+func stop_music() -> void:
+	_ducked = false
+	if _music_player:
+		_music_player.stop()
+		_music_player.stream = null
+
+## Plays a one-shot musical cue (intro, sting) on the Music bus. The background music is NOT stopped or
+## restarted: it is only lowered by duck_db while the cue plays, then restored. One cue at a time; a new
+## one replaces the old. Returns the cue's length in seconds (0.0 if the stream is null or has no length).
+func play_jingle(stream: AudioStream, volume_db: float = 0.0, duck_db: float = -12.0) -> float:
+	stop_jingle()
+	if stream == null:
+		return 0.0
+	if _jingle_player == null:
+		_jingle_player = AudioStreamPlayer.new()
+		_jingle_player.bus = _valid_bus(BUS_MUSIC)
+		_jingle_player.finished.connect(_end_duck)
+		add_child(_jingle_player)
+	_jingle_player.stream = stream
+	_jingle_player.volume_db = volume_db
+	if _music_player and _music_player.playing and not _ducked:
+		_duck_base_db = _music_player.volume_db
+		_music_player.volume_db = _duck_base_db + duck_db
+		_ducked = true
+	_jingle_player.play()
+	return stream.get_length()
+
+## Stops the current cue early (e.g. the scene changed) and brings the background music back up.
+func stop_jingle() -> void:
+	if _jingle_player and _jingle_player.playing:
+		_jingle_player.stop()
+	_end_duck()
+
+func _end_duck() -> void:
+	if _ducked and _music_player:
+		_music_player.volume_db = _duck_base_db
+	_ducked = false
+
+func _ensure_music_player() -> void:
+	if _music_player:
+		return
+	_music_player = AudioStreamPlayer.new()
+	_music_player.bus = _valid_bus(BUS_MUSIC)
+	# restart on finish so it loops even for formats without a loop flag (e.g. WAV without loop points)
+	_music_player.finished.connect(_on_music_finished)
+	add_child(_music_player)
+
+func _on_music_finished() -> void:
+	if _music_player.stream != null:
+		_music_player.play()
 
 # Returns an idle player from the pool, growing it if needed. Never steals a playing one.
 func _acquire(pool: Array, factory: Callable):

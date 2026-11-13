@@ -1,0 +1,5 @@
+[gd_scene format=3 uid="uid://rx3v4lloprju"]
+
+[ext_resource type="PackedScene" uid="uid://c0chvg1x7i1re" path="res://Scenes/Projectiles/radial_projectile.tscn" id="1_radial"]
+
+[node name="FlameWallProjectile" unique_id=1871354544 instance=ExtResource("1_radial")]

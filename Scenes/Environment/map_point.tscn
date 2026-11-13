@@ -1,0 +1,17 @@
+[gd_scene format=3 uid="uid://bmfbew0jg1hl4"]
+
+[ext_resource type="Script" uid="uid://csu83gd446fri" path="res://Scripts/Environment/map_point.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://Scenes/Effects/obtain_cutscene.tscn" id="2_cutscene"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_map"]
+size = Vector2(32, 48)
+
+[node name="MapPoint" type="Area2D" unique_id=706742613]
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("1_script")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=656682710]
+shape = SubResource("RectangleShape2D_map")
+
+[node name="Cutscene" parent="." unique_id=141232366 instance=ExtResource("2_cutscene")]

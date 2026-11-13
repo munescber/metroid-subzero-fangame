@@ -42,15 +42,16 @@ animations = [{
 radius = 5.0
 
 [node name="Phantoon" type="CharacterBody2D" unique_id=1314953276]
+scale = Vector2(2, 2)
 collision_layer = 4
 script = ExtResource("script_phantoon")
-orbit_speed = 1.25
 max_health = 150
+orbit_speed = 1.25
 pause_duration = 1.5
 dash_speed = 150.0
 show_dash_marker = false
+burst_hold_duration = 0.4
 bounce_horizontal_drift = 10.0
-burst_hold_duration = 0.3
 bounce_release_delay = 0.2
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1968815399]

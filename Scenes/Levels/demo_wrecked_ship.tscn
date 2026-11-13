@@ -16,6 +16,7 @@
 [ext_resource type="PackedScene" uid="uid://b37x5yfk0m4py" path="res://Scenes/Effects/crt_filter.tscn" id="crt_filter"]
 [ext_resource type="Script" uid="uid://drw4et6iafu63" path="res://Scripts/Levels/room_camera.gd" id="room_camera_script"]
 [ext_resource type="Script" uid="uid://c8vuahvbse6xu" path="res://Scripts/Levels/room_region.gd" id="room_region_script"]
+[ext_resource type="PackedScene" path="res://Scenes/Environment/level_music.tscn" id="level_music_scene"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_bg"]
 texture = ExtResource("1_luw1r")
@@ -1275,6 +1276,8 @@ position = Vector2(553, 73)
 position = Vector2(-328, 152)
 
 [node name="CRTFilter" parent="." unique_id=2089822235 instance=ExtResource("crt_filter")]
+
+[node name="LevelMusic" parent="." instance=ExtResource("level_music_scene")]
 
 [node name="RoomCamera" type="Camera2D" parent="." unique_id=14135181]
 position = Vector2(128, -72)

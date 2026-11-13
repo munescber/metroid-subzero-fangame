@@ -7,7 +7,7 @@ size = Vector2(17.6, 17.6)
 
 [node name="ActivationButton" type="Area2D" unique_id=1215577465]
 collision_layer = 0
-collision_mask = 10
+collision_mask = 8
 script = ExtResource("2_script")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1420477018]

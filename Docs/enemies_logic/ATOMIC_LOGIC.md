@@ -46,7 +46,7 @@ enum State { FLOATING, ELECTRIC_CHARGING, ELECTRIC_FIELD, COOLDOWN, DEAD }
 - Stays stationary at max glow.
 - On entry: `field_active = true`, `hurtbox.monitoring` is disabled, and `_clear_projectiles_in_field()` removes any projectile already inside the field.
 - **Size:** `_field_scale()` is `0.5 + glow_intensity / 4.0`, so the radius is `electric_field_radius * _field_scale()`. The visual, the blocking area and the damage query all use it. It reaches full size at full glow.
-- **Damage:** `_tick_field_damage` runs on a fixed tick (`electric_field_damage_tick`, 0.5s) instead of every frame. It runs a physics-shape query on the Hurtbox layer (16) and calls `receive_hit` on the player's hurtbox for `electric_field_damage` (5, the scene overrides it to 10). A tick is needed because `area_entered` only fires on new overlaps and would miss a player standing still.
+- **Damage:** `_tick_field_damage` runs on a fixed tick (`electric_field_damage_tick`, 0.1s, short enough that the player is re-hit right when invulnerability ends) instead of every frame. It runs a physics-shape query on the Hurtbox layer (16) and calls `receive_hit` on the player's hurtbox for `electric_field_damage` (5, the scene overrides it to 10). A tick is needed because `area_entered` only fires on new overlaps and would miss a player standing still.
 - **Player matching** uses node name (`Player` / `player_rundas`) or group membership.
 - **Projectile blocking:** `_on_electric_field_entered` destroys `Hitbox` areas that touch the field, but only once `field_active` is true:
   - A `Missile` detonates at its current position.
@@ -81,7 +81,7 @@ enum State { FLOATING, ELECTRIC_CHARGING, ELECTRIC_FIELD, COOLDOWN, DEAD }
 | Detection | `detection_range` / `disengage_range` | 200 / 250 |
 | Electric Field | `electric_field_interval` | 10.0 |
 | Electric Field | `electric_charge_duration` / `electric_field_duration` / `electric_field_cooldown` | 1.5 / 2.0 / 1.5 |
-| Electric Field | `electric_field_radius` / `electric_field_damage` / `electric_field_damage_tick` | 24 / 5 / 0.5 |
+| Electric Field | `electric_field_radius` / `electric_field_damage` / `electric_field_damage_tick` | 24 / 5 / 0.1 |
 | Visual | `glow_intensity` | 0.0 |
 | Death | `death_duration` | 0.5 |
 

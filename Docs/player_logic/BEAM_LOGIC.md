@@ -69,6 +69,7 @@ State on the player:
 
 | Variable | Meaning |
 |---|---|
+| `charge_beam_unlocked` | exported; false until the `ChargeBeamPowerup` is collected (tick it in the Inspector to test). While false the Charge Beam cannot be charged or fired |
 | `charge_time_required` | seconds the key must be held for a full charge (exported) |
 | `is_charging` | `shoot` is being held and a charge is in progress |
 | `is_charged` | `charge_time` has reached `charge_time_required` |
@@ -80,12 +81,16 @@ Flow, driven from `handle_shoot(delta)` every physics frame:
    - with `missile_mode` held: `_try_fire_missile()`; no charge starts;
    - otherwise: `_start_charge()` (`is_charging = true`, `charge_time = 0`).
    Nothing is spawned on press.
+   While `charge_beam_unlocked` is false, `_start_charge()` still arms the normal
+   shot (fired on release as usual) but skips the charge loop sound.
 2. `_update_charge(delta)` runs every frame while `is_charging`:
    - if `missile_mode` is now held: `_reset_charge()` and stop (no shot);
    - if `shoot` is no longer held (release):
      - `is_charged`: `_fire_charge_beam()`;
      - otherwise, if `shoot_timer <= 0`: `_fire_bullet()`;
      - then the charge is reset;
+   - if `charge_beam_unlocked` is false: stop here (no `charge_time`, no
+     indicator, `is_charged` stays false);
    - otherwise add `delta` to `charge_time`; when it reaches
      `charge_time_required`, set `is_charged = true`; update the indicator.
 3. `_fire_bullet()` sets `shoot_timer = SHOOT_COOLDOWN` and spawns the normal

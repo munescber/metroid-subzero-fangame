@@ -1,0 +1,127 @@
+[gd_scene format=3 uid="uid://qfjhkmiukr20"]
+
+[ext_resource type="Script" uid="uid://c386v2n4cxl6o" path="res://Scripts/UI/minimap.gd" id="1_minimap"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+content_margin_left = 1.0
+content_margin_top = 1.0
+content_margin_right = 1.0
+content_margin_bottom = 1.0
+bg_color = Color(0, 0, 0, 0.6)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.7, 0.7, 0.8, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_marker"]
+draw_center = false
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(1, 0.85, 0.2, 1)
+
+[node name="Minimap" type="Control" unique_id=1917747148]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_minimap")
+
+[node name="Panel" type="PanelContainer" parent="." unique_id=1344552128]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -8.0
+offset_top = 8.0
+offset_right = -8.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="Grid" type="GridContainer" parent="Panel" unique_id=951043027]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/h_separation = 0
+theme_override_constants/v_separation = 0
+columns = 3
+
+[node name="MapCell0" type="TextureRect" parent="Panel/Grid" unique_id=809037718]
+texture_filter = 1
+custom_minimum_size = Vector2(8, 8)
+layout_mode = 2
+mouse_filter = 2
+stretch_mode = 3
+
+[node name="MapCell1" type="TextureRect" parent="Panel/Grid" unique_id=401179954]
+texture_filter = 1
+custom_minimum_size = Vector2(8, 8)
+layout_mode = 2
+mouse_filter = 2
+stretch_mode = 3
+
+[node name="MapCell2" type="TextureRect" parent="Panel/Grid" unique_id=1444073317]
+texture_filter = 1
+custom_minimum_size = Vector2(8, 8)
+layout_mode = 2
+mouse_filter = 2
+stretch_mode = 3
+
+[node name="MapCell3" type="TextureRect" parent="Panel/Grid" unique_id=1383892094]
+texture_filter = 1
+custom_minimum_size = Vector2(8, 8)
+layout_mode = 2
+mouse_filter = 2
+stretch_mode = 3
+
+[node name="MapCell4" type="TextureRect" parent="Panel/Grid" unique_id=1948696708]
+texture_filter = 1
+custom_minimum_size = Vector2(8, 8)
+layout_mode = 2
+mouse_filter = 2
+stretch_mode = 3
+
+[node name="Marker" type="Panel" parent="Panel/Grid/MapCell4" unique_id=1145996915]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_marker")
+
+[node name="MapCell5" type="TextureRect" parent="Panel/Grid" unique_id=301274269]
+texture_filter = 1
+custom_minimum_size = Vector2(8, 8)
+layout_mode = 2
+mouse_filter = 2
+stretch_mode = 3
+
+[node name="MapCell6" type="TextureRect" parent="Panel/Grid" unique_id=675060397]
+texture_filter = 1
+custom_minimum_size = Vector2(8, 8)
+layout_mode = 2
+mouse_filter = 2
+stretch_mode = 3
+
+[node name="MapCell7" type="TextureRect" parent="Panel/Grid" unique_id=879666923]
+texture_filter = 1
+custom_minimum_size = Vector2(8, 8)
+layout_mode = 2
+mouse_filter = 2
+stretch_mode = 3
+
+[node name="MapCell8" type="TextureRect" parent="Panel/Grid" unique_id=2078577539]
+texture_filter = 1
+custom_minimum_size = Vector2(8, 8)
+layout_mode = 2
+mouse_filter = 2
+stretch_mode = 3

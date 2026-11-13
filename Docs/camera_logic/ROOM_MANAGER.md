@@ -17,7 +17,13 @@ Keeps only the room the player is in simulating, so cost does not grow with the 
 2. **`transition_started`**: the destination region is activated (shown, collision restored). The camera then freezes it, together with everything else, so it slides into view without simulating.
 3. **`transition_finished`**: the camera has already restored process modes, so the destination simulates. The source region is deactivated. Everything in the `projectiles` containers is freed, so player shots do not follow into the next room.
 
+Every time a cell becomes final (start, `transition_finished`, `warp_to()` and the camera's `cell_changed`) the manager calls `_report_map_cell()`. It passes the region's map cell to `MapManager.enter_cell()` and does nothing for regions without `map_room`. It never reports on `transition_started`, so the minimap updates only after a slide ends. See `Docs/map_logic/MINIMAP.md`.
+
 Slides inside one multi-screen room change nothing except the projectile cleanup. Refused transitions never emit the camera's signals, so the manager does nothing.
+
+## `room_entered` signal
+
+`signal room_entered(region: RoomRegion)` is emitted once the active room really changes, after the state update: in `_on_transition_finished` (only when `active_region` changed), in `warp_to()` and when the start room is activated. It is never emitted for `cell_changed`, slides inside one region or refused transitions. The start room and `warp_to()` emit even when the room is the first one, so loading a save into a Save Room shows its banner. The `RoomBannerManager` autoload consumes it; the manager itself knows nothing about the UI. See `Docs/ui_logic/ROOM_BANNER.md`.
 
 Enemy projectiles are spawned with `get_parent().add_child(...)`, so they live in their enemy's room and are frozen, hidden and cleaned up with it.
 

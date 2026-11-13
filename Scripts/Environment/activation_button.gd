@@ -2,9 +2,9 @@ extends Area2D
 
 class_name ActivationButton
 
-## Detects the player stepping on it (PlayerBody layer) or being shot (Hitbox layer)
-## and calls activate()/toggle() on the configured target, without the target
-## needing to know why it was triggered.
+## Detects being shot by the player's beams or missiles (Hitbox layer) and calls
+## activate()/toggle() on the configured target, without the target needing to
+## know why it was triggered. Player contact does not trigger it.
 
 @export var target_path: NodePath
 @export var one_shot: bool = false
@@ -16,10 +16,9 @@ var _triggered: bool = false
 
 func _ready() -> void:
 	collision_layer = 0
-	collision_mask = 2 | 8  # PlayerBody (step on) + Hitbox (shoot)
+	collision_mask = 8  # Hitbox (shoot) only
 	monitoring = true
 
-	body_entered.connect(_on_body_entered)
 	area_entered.connect(_on_area_entered)
 
 	if target_path != NodePath(""):
@@ -28,14 +27,6 @@ func _ready() -> void:
 			push_warning("ActivationButton: target_path did not resolve to a node.")
 	elif debug_enabled:
 		print_debug("[ActivationButton] No target_path set.")
-
-func _on_body_entered(body: Node) -> void:
-	if debug_enabled:
-		print_debug("[ActivationButton] Body entered: ", body.name)
-	if body.is_in_group("player"):
-		if debug_enabled:
-			print_debug("[ActivationButton] Hit by player (stepped on).")
-		_trigger()
 
 func _on_area_entered(area: Area2D) -> void:
 	# Layer 8 (Hitbox) is shared by the player's bullets AND enemy attack

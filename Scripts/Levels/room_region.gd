@@ -33,6 +33,14 @@ enum CameraMode { FIXED_SCREEN, SMOOTH_FOLLOW }
 	set(value):
 		screens = value.max(Vector2i.ONE)
 		queue_redraw()
+		update_configuration_warnings()
+## Minimap data for this room. Empty = the room is off the map.
+@export var map_room: MapRoomData:
+	set(value):
+		map_room = value
+		update_configuration_warnings()
+## Title shown in the room banner (Save, Map...) when the player enters this room. Empty = no banner.
+@export var banner_title: String = ""
 ## Other regions this one connects to (paths relative to this node). Connections work both ways.
 @export var connects_to: Array[NodePath] = []
 ## Seconds after a respawnable enemy dies before a fresh copy appears while the player stays in this
@@ -81,6 +89,21 @@ func is_connected_to(other: RoomRegion) -> bool:
 		if get_node_or_null(path) == other:
 			return true
 	return false
+
+## World-map cell for `cell`, a RoomCamera grid cell (anchored at `room_origin`) inside this region.
+## Only valid when `map_room` is set.
+func get_map_cell(cell: Vector2i, room_origin: Vector2) -> Vector2i:
+	var first_cell := Vector2i(((global_position - room_origin) / standard_screen_size()).round())
+	return map_room.map_position + (cell - first_cell)
+
+func _get_configuration_warnings() -> PackedStringArray:
+	var warnings := PackedStringArray()
+	if map_room != null:
+		if map_room.size != screens:
+			warnings.append("map_room.size %s does not match screens %s." % [map_room.size, screens])
+		if map_room.icons.size() != map_room.size.x * map_room.size.y:
+			warnings.append("map_room.icons has %d entries, expected %d." % [map_room.icons.size(), map_room.size.x * map_room.size.y])
+	return warnings
 
 ## Hook for future locked doors / one-way exits. Called before leaving `cell` towards `dir`.
 func allows_exit(_cell: Vector2i, _dir: Vector2i) -> bool:

@@ -6,7 +6,11 @@ signal health_changed(current_hp: int, max_hp: int)
 signal missiles_changed(current_ammo: int, max_ammo: int)
 ## Emitted once, when missiles are first unlocked.
 signal missiles_acquired
-## Emitted when health reaches zero, before the level reloads from the last save.
+## Emitted once, when the charge beam is first unlocked.
+signal charge_beam_acquired
+## Emitted once, when the dash (dash, downward dash and slide) is first unlocked.
+signal dash_acquired
+## Emitted once when health reaches zero, before the Game Over screen is shown.
 signal died
 
 # ==================================================
@@ -49,6 +53,8 @@ var is_jump_rising: bool = false
 @export_range(1.0, 1.5, 0.01) var spin_jump_velocity_multiplier: float = 1.08
 # SpriteFrames animation name for the spin (looping OFF so animation_finished fires).
 const SPIN_JUMP_ANIM := "spin_jump"
+# SpriteFrames animation played for the whole slide (add it to the AnimatedSprite2D yourself).
+const SLIDE_ANIM := "slide"
 # True from a spin takeoff until the animation ends, or the player lands, dashes or gets hit.
 var is_spin_jumping: bool = false
 
@@ -81,8 +87,49 @@ var is_spin_jumping: bool = false
 @export var sfx_walk: AudioStream
 @export_group("")
 
-# Reference to the AnimatedSprite2D node
+# Slide collision: a shorter, wider rectangle that replaces the normal body shape while
+# sliding. Its bottom edge is aligned at runtime with the bottom of the normal shape
+# (scale included), so the feet stay on the floor when switching. Edit the size here;
+# the position set on the SlideCollisionShape2D nodes in the scene is overridden at startup.
+@export_group("Slide Collision")
+## Size in px of the slide collision (body and hurtbox). Keep the height slightly below the
+## narrowest gap you want to slide through (9.5 fits a 10 px gap; an exact fit jams on the
+## physics safe margin).
+@export var slide_collision_size: Vector2 = Vector2(16.0, 9.5):
+	set(value):
+		slide_collision_size = value.max(Vector2.ONE)
+		if is_node_ready():
+			_layout_slide_shapes()
+@export_group("")
+
+# Ground slide (S + K while grounded). The burst lasts slide_duration; if the player still
+# can't stand afterwards (low ceiling) the slide goes on in SLIDE_RECOVERY until they can.
+@export_group("Slide")
+## Horizontal speed in px/s during the slide and the recovery that follows it.
+@export var slide_speed: float = 180.0
+## Seconds of the initial burst. The slide continues past this while there is no room to stand.
+@export var slide_duration: float = 0.45
+## Seconds after the player stands up before another slide can start.
+@export var slide_cooldown: float = 0.5
+@export_group("")
+
+enum SlideState { NONE, SLIDING, SLIDE_RECOVERY }
+var slide_state: SlideState = SlideState.NONE
+var slide_direction: float = 1.0
+var slide_timer: float = 0.0
+var slide_cooldown_timer: float = 0.0
+# The clearance query is this much wider (each side) and taller (top) than the shape it tests.
+# It must exceed the physics safe margin (0.08 px), or a shape that fits "by a hair" gets nudged
+# by the engine's recovery step when it is enabled.
+const SLIDE_CLEARANCE_MARGIN := 0.1
+# The query's bottom is this much shorter, since the player rests slightly above the floor.
+const SLIDE_FLOOR_TOLERANCE := 0.05
+var _clearance_shape := RectangleShape2D.new()
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
+@onready var normal_shape: CollisionShape2D = $CollisionShape2D
+@onready var slide_shape: CollisionShape2D = $SlideCollisionShape2D
+@onready var normal_hurtbox_shape: CollisionShape2D = $Hurtbox/CollisionShape2D
+@onready var slide_hurtbox_shape: CollisionShape2D = $Hurtbox/SlideCollisionShape2D
 @onready var muzzle = $Muzzle
 # Holds the fixed per-aim Marker2D positions (authored for the right-facing pose)
 @onready var muzzle_markers: Node2D = $Muzzles
@@ -96,6 +143,15 @@ var missile_scene: PackedScene = preload("res://Scenes/Player/missile.tscn")
 
 # Charge beam state: pressing "shoot" starts a charge. On release the player fires
 # a normal bullet, or the charge beam if held past charge_time_required.
+# While the charge beam is locked, the press only arms a normal bullet: no charge
+# time, glow, loop sound, charge beam or pickup magnet.
+## Whether the charge beam is unlocked at start (set true to test without the pickup).
+@export var charge_beam_unlocked: bool = false:
+	set(value):
+		var newly_unlocked := value and not charge_beam_unlocked
+		charge_beam_unlocked = value
+		if newly_unlocked:
+			charge_beam_acquired.emit()
 @export var charge_time_required: float = 0.8
 var is_charging: bool = false
 var _charge_loop_player: AudioStreamPlayer
@@ -110,6 +166,14 @@ var aim_angle: float = 0.0
 const AIM_ACTIONS: Array[String] = ["up", "down", "aim_diag_up", "aim_diag_down"]
 var _aim_press_order: Array[String] = []
 var dash_cooldown_timer: float = 0.0
+## Whether the dash, downward dash and slide (all on the "dash" action) are unlocked at start
+## (set true to test without the pickup).
+@export var dash_unlocked: bool = false:
+	set(value):
+		var newly_unlocked := value and not dash_unlocked
+		dash_unlocked = value
+		if newly_unlocked:
+			dash_acquired.emit()
 var dash_remaining_distance: float = 0.0
 var dash_direction: float = 1.0
 var is_dashing: bool = false
@@ -123,6 +187,26 @@ var dash_afterimage_scene: PackedScene = preload("res://Scenes/Player/dash_after
 
 # Health component (instantiated at runtime)
 var health_comp: HealthComponent = null
+const GAME_OVER_SCENE := "res://Scenes/UI/game_over_screen.tscn"
+## Set once health hits zero; makes the death sequence run a single time.
+var _is_dead: bool = false
+## Set when the Mission Complete sequence takes over; distinct from _is_dead. See play_victory().
+var _is_victory: bool = false
+## Name of the optional "victory" animation in the sprite's SpriteFrames (art is added by hand).
+const VICTORY_ANIM := &"victory"
+## Seconds the victory pose is held before the Mission Complete screen. Set it to the animation length.
+@export var victory_duration: float = 4.0
+signal victory_started
+signal victory_finished
+
+## Mission Start / Continue presentation (see PlayerSequence). While set, controls are off and the
+## front-facing animation below is shown.
+var _is_presenting: bool = false
+var _presentation_flip_h: bool = false
+var _presentation_invulnerable: bool = false
+## Name of the front-facing animation to add to the sprite's SpriteFrames (art is added by hand).
+## Falls back to the idle pose, with a warning, while it does not exist.
+const PRESENT_ANIM := &"face_forward"
 
 # Health and damage tuning
 @export var max_health: int = 100
@@ -235,6 +319,8 @@ func _ready():
 	# Registered in code (not saved in the scene) so the group survives scene re-saves.
 	add_to_group("player")
 	add_to_group("saveable")
+	_layout_slide_shapes()
+	set_slide_collision_active(false)
 	sprite.play("idle")
 	sprite.animation_finished.connect(_on_sprite_animation_finished)
 	_update_muzzle_position()
@@ -258,6 +344,7 @@ func _ready():
 
 func _physics_process(delta):
 	apply_gravity(delta)
+	handle_slide(delta)
 	handle_jump()
 	handle_aim()
 	handle_shoot(delta)
@@ -265,7 +352,7 @@ func _physics_process(delta):
 	
 	if knockback_lock_timer > 0.0:
 		knockback_lock_timer -= delta
-	elif not is_dashing:
+	elif not is_dashing and slide_state == SlideState.NONE:
 		handle_horizontal_movement()
 
 	hurt_timer = maxf(hurt_timer - delta, 0.0)
@@ -285,6 +372,7 @@ func _physics_process(delta):
 			sprite.modulate = _original_modulate
 
 	move_and_slide()
+	_update_slide_after_move()
 	_update_ground_sfx()
 
 	# the wall check is skipped during the windup, since no dash movement has happened yet
@@ -299,6 +387,11 @@ func handle_shoot(delta):
 	shoot_timer = max(shoot_timer - delta, 0.0)
 	missile_timer = max(missile_timer - delta, 0.0)
 
+	# no shooting or charging while sliding; a charge in progress is dropped
+	if slide_state != SlideState.NONE:
+		if is_charging:
+			_reset_charge()
+		return
 	if Input.is_action_just_pressed("missile_mode") and debug_enabled:
 		print_debug("[Player] MISSILE STATE IS ON")
 	if Input.is_action_just_released("missile_mode") and debug_enabled:
@@ -357,7 +450,8 @@ func _start_charge() -> void:
 	is_charging = true
 	is_charged = false
 	charge_time = 0.0
-	_start_charge_loop()
+	if charge_beam_unlocked:
+		_start_charge_loop()
 
 
 func _update_charge(delta: float) -> void:
@@ -378,6 +472,9 @@ func _update_charge(delta: float) -> void:
 			_fire_bullet()
 		return
 
+	if not charge_beam_unlocked:
+		return
+
 	charge_time += delta
 	if not is_charged and charge_time >= charge_time_required:
 		is_charged = true
@@ -393,7 +490,7 @@ func _update_ground_sfx() -> void:
 		_play_sfx(sfx_land)
 	_was_on_floor = on_floor
 
-	var walking := on_floor and not is_dashing and absf(velocity.x) > WALK_SFX_MIN_SPEED
+	var walking := on_floor and not is_dashing and slide_state == SlideState.NONE and absf(velocity.x) > WALK_SFX_MIN_SPEED
 	if walking and sfx_walk != null:
 		if _walk_loop_player == null:
 			_walk_loop_player = AudioStreamPlayer.new()
@@ -502,10 +599,24 @@ func increase_missile_capacity(amount: int) -> void:
 	missile_ammo += amount
 
 
-## True while the player is holding a charge; health and missile pickups are
-## pulled toward the player (see Pickup magnet exports).
+## Called by ChargeBeamPowerup. Unlocks charging and the charge beam.
+func collect_charge_beam() -> void:
+	if is_charging:
+		_reset_charge()  # a press held through the pickup restarts cleanly
+	charge_beam_unlocked = true
+	print("Charge beam obtained")
+
+
+## Called by DashPowerup. Unlocks the dash, downward dash and slide.
+func collect_dash() -> void:
+	dash_unlocked = true
+	print("Dash obtained")
+
+
+## True while the player is holding a charge (needs the charge beam); health and
+## missile pickups are pulled toward the player (see Pickup magnet exports).
 func attracts_pickups() -> bool:
-	return is_charging
+	return is_charging and charge_beam_unlocked
 
 
 ## Returns the HP actually restored (0 when full, dead, or amount <= 0).
@@ -534,10 +645,22 @@ func increase_max_health(amount: int) -> void:
 		health_comp.heal(amount)
 
 
-## Full health and full missiles (used by save points).
-func restore_all() -> void:
+## Called by HealthExpansion. Raises max health and heals by `amount`.
+func collect_health_expansion(amount: int) -> void:
+	increase_max_health(amount)
+	if health_comp:
+		print("Health expansion obtained. HP %d/%d" % [health_comp.current_health, health_comp.max_health])
+
+
+## Heals to max health (used by save points with `refill_health_on_save`).
+func restore_health_full() -> void:
 	if health_comp:
 		health_comp.heal(health_comp.max_health)
+
+
+## Full health and full missiles.
+func restore_all() -> void:
+	restore_health_full()
 	restore_missiles(missile_max_ammo)
 
 
@@ -550,6 +673,8 @@ func get_save_data() -> Dictionary:
 		"missiles_unlocked": missiles_unlocked,
 		"missile_max_ammo": missile_max_ammo,
 		"missile_ammo": missile_ammo,
+		"charge_beam_unlocked": charge_beam_unlocked,
+		"dash_unlocked": dash_unlocked,
 	}
 
 
@@ -561,6 +686,8 @@ func load_save_data(data: Dictionary) -> void:
 	missiles_unlocked = bool(data.get("missiles_unlocked", missiles_unlocked))
 	missile_max_ammo = int(data.get("missile_max_ammo", missile_max_ammo))
 	missile_ammo = int(data.get("missile_ammo", missile_ammo))
+	charge_beam_unlocked = bool(data.get("charge_beam_unlocked", charge_beam_unlocked))
+	dash_unlocked = bool(data.get("dash_unlocked", dash_unlocked))
 
 
 func _try_fire_missile() -> void:
@@ -603,14 +730,21 @@ func handle_dash(delta):
 		# a ground dash that carries the player off a ledge counts as the air dash
 		air_dash_used = true
 
+	# a slide owns the movement until it ends (its cooldown timers above keep running)
+	if slide_state != SlideState.NONE:
+		return
+
 	if is_dashing:
 		_update_dash(delta)
 		return
 
-	if not Input.is_action_just_pressed("dash") or knockback_lock_timer > 0.0:
+	if not dash_unlocked or not Input.is_action_just_pressed("dash") or knockback_lock_timer > 0.0:
 		return
 
 	if is_on_floor():
+		# on the ground S + K is the slide (handle_slide), never the horizontal dash
+		if Input.is_action_pressed("down"):
+			return
 		if dash_cooldown_timer <= 0.0:
 			_start_dash()
 	elif Input.is_action_pressed("down"):
@@ -704,7 +838,7 @@ func apply_gravity(delta):
 
 
 func handle_jump():
-	if is_dashing:
+	if is_dashing or slide_state != SlideState.NONE:
 		return
 	if Input.is_action_just_pressed("jump") and is_on_floor():
 		# jump style is decided here only, from the speed at takeoff
@@ -749,10 +883,161 @@ func _update_muzzle_position() -> void:
 	handle_aim()
 
 
+# ==================================================
+# Slide collision
+# ==================================================
+
+# Bottom edge (local y) of a shape node, taking its scale and the rectangle size into account.
+func _shape_bottom(shape_node: CollisionShape2D) -> float:
+	var rect := shape_node.shape as RectangleShape2D
+	return shape_node.position.y + rect.size.y * 0.5 * absf(shape_node.scale.y)
+
+
+# Sizes both slide shapes and sits each one on the bottom edge of its normal counterpart.
+func _layout_slide_shapes() -> void:
+	_layout_slide_shape(slide_shape, normal_shape)
+	_layout_slide_shape(slide_hurtbox_shape, normal_hurtbox_shape)
+
+
+func _layout_slide_shape(slide: CollisionShape2D, normal: CollisionShape2D) -> void:
+	(slide.shape as RectangleShape2D).size = slide_collision_size
+	slide.position = Vector2(normal.position.x, _shape_bottom(normal) - slide_collision_size.y * 0.5)
+
+
+## True while the slide collision is the active one (the normal one is then disabled).
+func is_slide_collision_active() -> bool:
+	return not slide_shape.disabled
+
+
+## Exactly one body shape (and one hurtbox shape) is enabled at any time.
+## Must not be called from a physics callback (signal); use call_deferred there.
+func set_slide_collision_active(active: bool) -> void:
+	# the shape being enabled goes first so the body is never without collision
+	if active:
+		slide_shape.disabled = false
+		slide_hurtbox_shape.disabled = false
+		normal_shape.disabled = true
+		normal_hurtbox_shape.disabled = true
+	else:
+		normal_shape.disabled = false
+		normal_hurtbox_shape.disabled = false
+		slide_shape.disabled = true
+		slide_hurtbox_shape.disabled = true
+
+
 func handle_aim() -> void:
 	# Update aim angle and muzzle from the resolved aim direction
 	_update_aim_press_order()
 	_apply_aim_to_muzzle(get_aim_direction())
+
+
+# ==================================================
+# Slide
+# ==================================================
+
+func is_sliding() -> bool:
+	return slide_state != SlideState.NONE
+
+
+# Runs before handle_dash/handle_jump so a slide start wins over a same-frame dash or jump.
+func handle_slide(delta: float) -> void:
+	slide_cooldown_timer = maxf(slide_cooldown_timer - delta, 0.0)
+
+	match slide_state:
+		SlideState.NONE:
+			if _can_start_slide():
+				_start_slide()
+		SlideState.SLIDING:
+			slide_timer -= delta
+		SlideState.SLIDE_RECOVERY:
+			_steer_recovery()
+
+	# knockback keeps its own velocity until its lock ends
+	if slide_state != SlideState.NONE and knockback_lock_timer <= 0.0:
+		velocity.x = slide_direction * slide_speed
+
+
+func _can_start_slide() -> bool:
+	return dash_unlocked \
+		and Input.is_action_just_pressed("dash") \
+		and Input.is_action_pressed("down") \
+		and is_on_floor() \
+		and not is_dashing \
+		and knockback_lock_timer <= 0.0 \
+		and slide_cooldown_timer <= 0.0 \
+		and _shape_fits(slide_shape)
+
+
+func _start_slide() -> void:
+	slide_state = SlideState.SLIDING
+	slide_timer = slide_duration
+	slide_direction = -1.0 if sprite.flip_h else 1.0
+	set_slide_collision_active(true)
+	velocity.y = 0.0
+	is_jump_rising = false
+	is_spin_jumping = false
+	if is_charging:
+		_reset_charge()
+
+
+# Dead-end escape: when the recovery slide is stopped by a wall ahead, pressing the opposite
+# direction turns the player around. Otherwise the direction never changes.
+func _steer_recovery() -> void:
+	if not is_on_wall():
+		return
+	var away := signf(get_wall_normal().x)
+	if away == 0.0 or away == slide_direction:
+		return
+	if signf(Input.get_axis("left", "right")) == away:
+		slide_direction = away
+		sprite.flip_h = away < 0.0
+		_update_muzzle_position()
+
+
+# Called right after move_and_slide, so the position checked here is the final one for the
+# frame and nothing moves between the clearance check and the shape swap.
+func _update_slide_after_move() -> void:
+	match slide_state:
+		SlideState.SLIDING:
+			var hit_wall := is_on_wall()
+			if hit_wall:
+				velocity.x = 0.0
+			if hit_wall or slide_timer <= 0.0 or not is_on_floor():
+				slide_state = SlideState.SLIDE_RECOVERY
+				if _shape_fits(normal_shape):
+					_end_slide()
+		SlideState.SLIDE_RECOVERY:
+			if _shape_fits(normal_shape):
+				_end_slide()
+
+
+func _end_slide() -> void:
+	slide_state = SlideState.NONE
+	set_slide_collision_active(false)
+	slide_cooldown_timer = slide_cooldown
+	# no leftover slide momentum (a knockback in progress keeps its own)
+	if knockback_lock_timer <= 0.0:
+		velocity.x = 0.0
+
+
+# True if the given shape node, at its current global position, overlaps no solid body.
+# The node may be disabled; only its size, scale and position are used. The player's own
+# body is excluded and the player's collision mask is used.
+func _shape_fits(shape_node: CollisionShape2D) -> bool:
+	var rect := shape_node.shape as RectangleShape2D
+	var size := rect.size * shape_node.global_scale.abs()
+	var m := SLIDE_CLEARANCE_MARGIN
+	var floor_slack := SLIDE_FLOOR_TOLERANCE
+	# wider and taller (sides and top) than the real shape, bottom slightly shorter
+	_clearance_shape.size = Vector2(size.x + m * 2.0, size.y + m - floor_slack)
+	var params := PhysicsShapeQueryParameters2D.new()
+	params.shape = _clearance_shape
+	params.transform = Transform2D(0.0, shape_node.global_position + Vector2(0.0, (-m - floor_slack) * 0.5))
+	params.collision_mask = collision_mask
+	params.collide_with_bodies = true
+	params.collide_with_areas = false
+	params.exclude = [get_rid()]
+	return get_world_2d().direct_space_state.intersect_shape(params, 1).is_empty()
 
 
 func _apply_aim_to_muzzle(dir: Vector2) -> void:
@@ -801,6 +1086,14 @@ func update_animation():
 
 	if hurt_timer > 0.0 and sprite.sprite_frames.has_animation("hurt"):
 		sprite.play("hurt")
+
+	# One pose for the whole slide, recovery included. It starts from its first frame when the
+	# slide begins and is never restarted while it lasts: a looping animation keeps looping,
+	# a non-looping one holds its last frame. Normal animations resume once the player stands.
+	# Without a "slide" animation in the SpriteFrames this falls through to the normal poses.
+	elif slide_state != SlideState.NONE and _has_anim(SLIDE_ANIM):
+		if sprite.animation != SLIDE_ANIM:
+			sprite.play(SLIDE_ANIM)
 
 	elif is_dashing and dash_is_downward and sprite.sprite_frames.has_animation("dash_downward"):
 		sprite.play("dash_downward")
@@ -882,6 +1175,8 @@ func _play_anim(anim_name: String) -> void:
 
 ### --- Phase 1: Damage shim and handlers ---
 func take_damage(amount: int, source = null) -> void:
+	if _is_dead or _is_victory:
+		return
 	if debug_enabled:
 		print_debug("[Player] take_damage called. amount=", amount, " source=", source, " invulnerable=", invulnerable)
 	if invulnerable:
@@ -892,6 +1187,11 @@ func take_damage(amount: int, source = null) -> void:
 	# damage cancels the dash so the knockback isn't overwritten
 	if is_dashing:
 		_end_dash()
+
+	# a hit during the burst drops into recovery (the short shape stays until standing is safe;
+	# shapes are never swapped here because damage arrives from physics callbacks)
+	if slide_state == SlideState.SLIDING:
+		slide_state = SlideState.SLIDE_RECOVERY
 
 	# apply knockback using source if available
 	if source and source is Node2D:
@@ -924,12 +1224,123 @@ func _on_health_damaged(amount: int, new_health: int) -> void:
 	print("Player damaged:", amount, "->", new_health)
 	# potential place to trigger hurt animation/sound
 
-func _on_health_died() -> void:
-	print("Player died")
-	# disable physics and input
+func is_dead() -> bool:
+	return _is_dead
+
+## Victory pose for the Mission Complete sequence (called by MissionManager; await it). Freezes the
+## player like death does but keeps the sprite, plays the "victory" animation if the SpriteFrames has
+## one (otherwise the idle pose is held) and returns after victory_duration seconds. Nothing else
+## plays animations meanwhile: _physics_process, which drives them, is off.
+func play_victory() -> void:
+	if _is_dead or _is_victory:
+		return
+	_is_victory = true
+	process_mode = Node.PROCESS_MODE_ALWAYS  # the tree is paused for the sequence
 	set_physics_process(false)
+	set_process_unhandled_input(false)
+	set_process_input(false)
 	velocity = Vector2.ZERO
+	invulnerable = true
+	is_dashing = false
+	is_spin_jumping = false
+	_reset_charge()
+	for loop_player in [_walk_loop_player, _spin_loop_player]:
+		if loop_player:
+			loop_player.stop()
+	var hurtbox := get_node_or_null("Hurtbox") as Area2D
+	if hurtbox:
+		hurtbox.set_deferred("monitorable", false)
+		hurtbox.set_deferred("monitoring", false)
+	sprite.modulate = _original_modulate
+	sprite.stop()
+	if sprite.sprite_frames != null and sprite.sprite_frames.has_animation(VICTORY_ANIM):
+		sprite.play(VICTORY_ANIM)
+	else:
+		sprite.play("idle")
+	victory_started.emit()
+	await get_tree().create_timer(victory_duration, true).timeout
+	victory_finished.emit()
+
+## Freezes the player for a presentation (Mission Start / Continue, driven by PlayerSequence) and shows
+## the front-facing PRESENT_ANIM. Like death/victory, everything gameplay lives in _physics_process, so
+## switching it off blocks movement, jumping, shooting, charging, dashing and the animation controller
+## (update_animation) in one go. Hits are ignored meanwhile. Returns false if it cannot start.
+func begin_presentation() -> bool:
+	if _is_dead or _is_victory or _is_presenting:
+		return false
+	_is_presenting = true
+	_presentation_flip_h = sprite.flip_h
+	_presentation_invulnerable = invulnerable
+	set_physics_process(false)
+	set_process_unhandled_input(false)
+	set_process_input(false)
+	velocity = Vector2.ZERO
+	invulnerable = true
+	hurt_timer = 0.0
+	knockback_lock_timer = 0.0
+	is_dashing = false
+	is_spin_jumping = false
+	_aim_press_order.clear()
+	_reset_charge()
+	for loop_player in [_walk_loop_player, _spin_loop_player]:
+		if loop_player:
+			loop_player.stop()
+	sprite.modulate = _original_modulate
+	sprite.flip_h = false  # the front pose is symmetric; the real facing is restored afterwards
+	sprite.stop()
+	if sprite.sprite_frames != null and sprite.sprite_frames.has_animation(PRESENT_ANIM):
+		sprite.play(PRESENT_ANIM)
+	else:
+		push_warning("[Player] Missing animation '%s' in SpriteFrames; holding idle for the presentation." % PRESENT_ANIM)
+		sprite.play("idle")
+	return true
+
+## Ends the presentation: facing and previous invulnerability come back, the idle pose is shown and
+## controls resume. Safe to call when no presentation is running.
+func end_presentation() -> void:
+	if not _is_presenting:
+		return
+	_is_presenting = false
+	sprite.flip_h = _presentation_flip_h
+	invulnerable = _presentation_invulnerable
+	if _is_dead or _is_victory:
+		return  # those sequences own the controls now
+	velocity = Vector2.ZERO
+	sprite.play("idle")
+	set_physics_process(true)
+	set_process_unhandled_input(true)
+	set_process_input(true)
+
+func is_presenting() -> bool:
+	return _is_presenting
+
+func _on_health_died() -> void:
+	if _is_dead or _is_victory:
+		return  # one death event only, and never during the victory
+	_is_dead = true
+	print("Player died")
+	# disable physics (movement, jumping, shooting, dashing all live in _physics_process) and input
+	set_physics_process(false)
+	set_process_unhandled_input(false)
+	set_process_input(false)
+	velocity = Vector2.ZERO
+	invulnerable = true
+	is_dashing = false
+	is_spin_jumping = false
+	_reset_charge()
+	for loop_player in [_walk_loop_player, _spin_loop_player]:
+		if loop_player:
+			loop_player.stop()
+	# nothing can touch the player any more
+	var hurtbox := get_node_or_null("Hurtbox") as Area2D
+	if hurtbox:
+		hurtbox.set_deferred("monitorable", false)
+		hurtbox.set_deferred("monitoring", false)
+	# no death animation exists: fade the sprite out while the delay runs
+	sprite.modulate = _original_modulate
+	var tween := create_tween()
+	tween.tween_property(sprite, "modulate:a", 0.0, reload_delay)
 	died.emit()
 	await get_tree().create_timer(reload_delay).timeout
-	SaveManager.restart_from_save()
+	SceneTransition.change_scene(GAME_OVER_SCENE)
 # End of player_rundas.gd

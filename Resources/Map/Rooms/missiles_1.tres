@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="MapRoomData" format=3 uid="uid://c2xj48y2hp0dr"]
+
+[ext_resource type="Texture2D" uid="uid://d2740notwctbn" path="res://Resources/Map/Icons/tile_door_left.tres" id="1_nckne"]
+[ext_resource type="Script" uid="uid://dmluw87r61h2k" path="res://Scripts/Levels/map_room_data.gd" id="2_7y6bn"]
+
+[resource]
+script = ExtResource("2_7y6bn")
+level_id = &"wrecked_ship"
+room_id = &"missiles_1"
+map_position = Vector2i(1, 3)
+icons = Array[Texture2D]([ExtResource("1_nckne")])

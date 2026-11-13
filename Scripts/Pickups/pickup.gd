@@ -23,6 +23,8 @@ class_name Pickup
 ## Sound played (via AudioManager, so it outlives the pickup) on a successful collection.
 ## Leave empty for silence.
 @export var pickup_sound: AudioStream
+## Audio bus the pickup sound plays on.
+@export var pickup_bus: StringName = &"SFX"
 
 ## Whether the player's charge beam pulls this item in. Off by default; refills
 ## and health turn it on, progression items (expansions) stay put.
@@ -31,6 +33,9 @@ class_name Pickup
 @export_range(0.0, 256.0, 1.0, "or_greater") var magnet_radius: float = 80.0
 ## Speed in pixels per second at which the item moves toward the player.
 @export_range(0.0, 600.0, 1.0, "or_greater") var magnet_speed: float = 128.0
+
+## Whether collecting this item shows a NotificationManager notification (items that have one).
+@export var show_notification: bool = true
 
 var _collected: bool = false
 var _player: Node2D = null
@@ -87,9 +92,17 @@ func load_save_data(data: Dictionary) -> void:
 func _try_collect(_body: Node) -> bool:
 	return false
 
-## Plays pickup_sound at the pickup's position through the AudioManager.
+## Plays pickup_sound at the pickup's position through the AudioManager, on `pickup_bus`.
 func _play_pickup_sound() -> void:
-	AudioManager.play_sfx_2d(pickup_sound, global_position)
+	AudioManager.play_sfx_2d(pickup_sound, global_position, 0.0, 1.0, pickup_bus)
+
+## Shows a pausing notification that the player closes with any key, using this item's sprite as
+## the icon. Does nothing when `show_notification` is off.
+func _notify(title: String, message: String) -> void:
+	if not show_notification:
+		return
+	var sprite := get_node_or_null("Sprite2D") as Sprite2D
+	NotificationManager.show_notification(title, message, sprite.texture if sprite else null, true)
 
 ## Hop animation plus despawn timer for enemy drops. Call after entering the tree
 ## and positioning the item.
