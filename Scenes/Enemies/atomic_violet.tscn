@@ -1,0 +1,120 @@
+[gd_scene format=3 uid="uid://btysl3owccawq"]
+
+[ext_resource type="Texture2D" uid="uid://djiisahchep4x" path="res://Spritesheets/spritesheet_atomic_violet.png" id="1_sheet"]
+[ext_resource type="Script" uid="uid://fkq4olopats6" path="res://Scripts/Pickups/drop_table.gd" id="2_7qnf8"]
+[ext_resource type="Script" uid="uid://dis5epw6hpsgu" path="res://Scripts/Common/hitbox.gd" id="2_hitbox"]
+[ext_resource type="Script" uid="uid://c3c0xff4hp2wj" path="res://Scripts/Common/health_component.gd" id="3_health"]
+[ext_resource type="PackedScene" uid="uid://daxiuvxppd5v3" path="res://Scenes/Projectiles/atomic_violet_beam.tscn" id="3_p756l"]
+[ext_resource type="Script" uid="uid://cjlps8ugi1jdq" path="res://Scripts/Common/hurtbox.gd" id="4_hurtbox"]
+[ext_resource type="AudioStream" uid="uid://b1rfp0u8x6kim" path="res://Audio/SFX/Player/charge_beam.wav" id="4_s81va"]
+[ext_resource type="AudioStream" uid="uid://dkqrd73we1jgj" path="res://Audio/SFX/Player/charge_beam_impact.wav" id="5_l405l"]
+[ext_resource type="Script" uid="uid://xowdhim4w6ev" path="res://Scripts/Enemies/atomic_violet.gd" id="5_script"]
+
+[sub_resource type="Resource" id="Resource_0ca4f"]
+script = ExtResource("2_7qnf8")
+metadata/_custom_type_script = "uid://fkq4olopats6"
+
+[sub_resource type="AtlasTexture" id="Frame0"]
+atlas = ExtResource("1_sheet")
+region = Rect2(0, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="Frame1"]
+atlas = ExtResource("1_sheet")
+region = Rect2(16, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="Frame2"]
+atlas = ExtResource("1_sheet")
+region = Rect2(0, 16, 16, 16)
+
+[sub_resource type="AtlasTexture" id="Frame3"]
+atlas = ExtResource("1_sheet")
+region = Rect2(16, 16, 16, 16)
+
+[sub_resource type="AtlasTexture" id="Frame4"]
+atlas = ExtResource("1_sheet")
+region = Rect2(0, 32, 16, 16)
+
+[sub_resource type="AtlasTexture" id="Frame5"]
+atlas = ExtResource("1_sheet")
+region = Rect2(16, 32, 16, 16)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_violet"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("Frame0")
+}, {
+"duration": 1.0,
+"texture": SubResource("Frame1")
+}, {
+"duration": 1.0,
+"texture": SubResource("Frame2")
+}, {
+"duration": 1.0,
+"texture": SubResource("Frame3")
+}, {
+"duration": 1.0,
+"texture": SubResource("Frame4")
+}, {
+"duration": 1.0,
+"texture": SubResource("Frame5")
+}],
+"loop": 1,
+"name": &"default",
+"speed": 6.0
+}]
+
+[sub_resource type="CircleShape2D" id="PhysicsShape"]
+radius = 8.0
+
+[sub_resource type="CircleShape2D" id="ContactDamageShape"]
+radius = 8.0
+
+[sub_resource type="CircleShape2D" id="HurtboxShape"]
+radius = 8.0
+
+[node name="AtomicViolet" type="CharacterBody2D" unique_id=926395668 groups=["respawnable"]]
+script = ExtResource("5_script")
+drop_table = SubResource("Resource_0ca4f")
+attack_cooldown = 4.0
+charge_duration = 1.0
+projectile_scene = ExtResource("3_p756l")
+projectile_speed = 150.0
+projectile_damage = 5
+projectile_lifetime = 5.0
+sfx_charge_loop = ExtResource("4_s81va")
+sfx_shoot = ExtResource("5_l405l")
+
+[node name="Visuals" type="Node2D" parent="." unique_id=2034659008]
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="Visuals" unique_id=443266932]
+sprite_frames = SubResource("SpriteFrames_violet")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1447720233]
+shape = SubResource("PhysicsShape")
+
+[node name="HealthComponent" type="Node" parent="." unique_id=938570386]
+script = ExtResource("3_health")
+
+[node name="ContactDamage" type="Area2D" parent="." unique_id=541969089]
+visible = false
+collision_layer = 8
+collision_mask = 16
+script = ExtResource("2_hitbox")
+damage = 2
+one_shot = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ContactDamage" unique_id=225368018]
+shape = SubResource("ContactDamageShape")
+
+[node name="Hurtbox" type="Area2D" parent="." unique_id=400609386]
+visible = false
+collision_layer = 16
+collision_mask = 8
+script = ExtResource("4_hurtbox")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox" unique_id=586378975]
+shape = SubResource("HurtboxShape")
+
+[node name="DamageFlashTimer" type="Timer" parent="." unique_id=1317875889]
+one_shot = true

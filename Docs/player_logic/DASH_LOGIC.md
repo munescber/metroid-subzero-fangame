@@ -7,6 +7,13 @@ The player has a short horizontal dash on the `dash` action (`K`). It is a
 fixed-distance burst of movement in the direction the player is facing. It
 works on the ground and in the air.
 
+On the ground, holding `S` while pressing `K` starts the ground slide instead of
+the dash (see `SLIDE_LOGIC.md`), and in the air it is the downward dash. `K` alone still dashes.
+
+The dash, air dash, downward dash and the slide are all locked until the `DashPowerup`
+is collected: while the exported `dash_unlocked` on the player is false, `K` does
+nothing. Tick `dash_unlocked` in the Inspector to test without the pickup.
+
 Player-facing behaviour (non-technical)
 ----------------------------------------
 - Press `K`: the player stops for a very short moment (a brief "hang"), then

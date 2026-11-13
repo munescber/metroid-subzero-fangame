@@ -32,6 +32,7 @@ A camera with two behaviours, chosen per region by `RoomRegion.camera_mode`:
 
 - `transition_started(from_cell, to_cell)`: emitted **before** gameplay is frozen, so a listener (`RoomManager`) can activate the destination room and have it frozen in its active state.
 - `transition_finished(cell)`: emitted after gameplay is unfrozen and `current_region` is updated.
+- `cell_changed(cell)`: SMOOTH_FOLLOW only. `current_cell` changed because the player crossed an internal screen edge, so no slide ran. It is not emitted for slides, the start room or `snap_to()`.
 
 ## Helpers
 

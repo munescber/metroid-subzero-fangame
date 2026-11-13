@@ -168,11 +168,31 @@ States: `is_opening`, `is_open`, `is_closing`. Signals: `opened`, `closed`.
 | `close_again` | off | Close again after `close_delay` seconds, playing `open` backwards |
 | `close_delay` | 3.0 | Seconds the gate stays open before it closes (0.1 to 60) |
 | `save_id` | empty | Stable id so the gate stays open after saving. Gates with `close_again` are never saved. See `save_logic/SAVE_SYSTEM.md` |
+| `open_on_unlock` | on | After `unlock()` the gate ends open, then acts like a normal gate (recloses in blue with `close_again`). Off = back to the blue closed gate |
 | `debug_enabled` | off | Prints ignored hits, opening, open and closing events |
 
 Public API: `take_damage()` (called by projectiles), `open_instantly()`,
-`close_instantly()`, flags `is_opening` / `is_open` / `is_closing`, signals
-`opened` / `closed`.
+`close_instantly()`, `lock()`, `lock_instantly()`, `unlock()`, `unlock_instantly()`, flags
+`is_opening` / `is_open` / `is_closing` / `is_locked`, signals `opened` / `closed` / `locked` /
+`unlocked`.
+
+## Locked state (boss rooms)
+
+`lock()` turns the gate gray and makes it unshootable: `take_damage()` returns early and
+`open_instantly()` from a partner is ignored. The gate is solid from the first moment, whatever it was
+doing (open, opening, closing, closed): the `close_again` countdown is cancelled and the gate rests on
+`locked`. A gate that was open or moving plays `lock` (empty, then gray frames 3 to 0); a closed one
+swaps straight to `locked`. The partner is locked with `lock_instantly()`.
+
+`unlock()` plays `unlock` (gray 0 to 3, then empty) and, with `open_on_unlock` (default on), ends open
+through the normal open path (`opened` is emitted and the partner opens). A gate opened this way is a
+normal open gate: with `close_again` it closes again in blue after `close_delay`. With `open_on_unlock` off it returns to the blue
+closed gate, which one shot opens. The partner is unlocked with `unlock_instantly()`; `unlocked` is
+emitted.
+
+The locked state is never saved: `get_save_data()` only reports an open gate. Sheet rows: row 0 (y = 0)
+is blue, row 1 (y = 48) is the same four frames in gray; the "empty" frame in `lock`/`unlock` is a null
+texture. See `BOSS_ENCOUNTER.md`.
 
 To change the base speed or the frames, edit the `open` animation in the
 `SpriteFrames` resource of `AnimatedSprite2D`.

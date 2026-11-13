@@ -88,12 +88,13 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 
 
-func launch(dir: Vector2, proj_speed: float, source: Node = null, delay: float = 0.0) -> void:
+## `lifetime` is how long it flies once the hold ends (the default suits a short burst).
+func launch(dir: Vector2, proj_speed: float, source: Node = null, delay: float = 0.0, lifetime: float = LIFETIME) -> void:
 	launch_delay = delay
 	direction = dir.normalized()
 	speed = proj_speed
 	shooter = source
-	life_timer = LIFETIME
+	life_timer = lifetime
 	rotation = direction.angle() - PI / 2.0
 	is_fading = false
 	fade_timer = 0.0

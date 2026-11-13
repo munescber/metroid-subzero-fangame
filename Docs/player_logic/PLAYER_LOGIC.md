@@ -6,7 +6,7 @@ Overview
 The player is `player_rundas`, a `CharacterBody2D` in `Scenes/Player/player.tscn`
 driven by `Scripts/Player/player_rundas.gd`. This file describes how the
 whole controller fits together. The details of the dash, the missile and the
-beams are in their own files: `DASH_LOGIC.md`, `MISSILE_LOGIC.md` and
+beams are in their own files: `DASH_LOGIC.md`, `SLIDE_LOGIC.md`, `MISSILE_LOGIC.md` and
 `BEAM_LOGIC.md`.
 
 Controls
@@ -19,20 +19,23 @@ Controls
 | `jump` | `Space` | Jump (hold for a higher jump). |
 | `shoot` | `J` | Fire a bullet, or hold to charge the beam. |
 | `missile_mode` | `I` | Hold it and press `shoot` to fire a missile. |
-| `dash` | `K` | Dash. |
+| `dash` | `K` | Dash (on the ground, `S` + `K` is the slide instead; in the air, `S` + `K` is the downward dash). |
 
 Scene structure
 ---------------
 - `player_rundas` (`CharacterBody2D`, collision layer 2 "PlayerBody") — the
   script lives here.
-  - `CollisionShape2D` — the body's collision with the world.
+  - `CollisionShape2D` — the body's collision with the world (standing).
+  - `SlideCollisionShape2D` — the shorter collision used while sliding; disabled
+    except during a slide (see `SLIDE_LOGIC.md`).
   - `Camera2D` — follows the player, zoom 4, smoothing on, offset `(0, -20)`.
   - `Muzzle` (`Marker2D`) — where projectiles spawn. It is mirrored and rotated
     with the facing and aim direction.
     - `ChargeEffect` (`Sprite2D`) — the visual shown while charging.
   - `AnimatedSprite2D` — animations `idle`, `walk`, `jump`, `fall`.
   - `Hurtbox` (`Area2D`, layer 16, mask 8, `Scripts/Common/hurtbox.gd`) — takes
-    damage from enemy hitboxes.
+    damage from enemy hitboxes. It has a normal and a slide `CollisionShape2D`,
+    swapped together with the body shapes.
 
 Other scripts and scenes look for the player by its node name (`player_rundas`
 or `Player`). **Do not rename the root node** without
@@ -44,16 +47,18 @@ Physics loop
 `_physics_process` runs these steps in order:
 
 1. `apply_gravity`
-2. `handle_jump`
-3. `handle_aim`
-4. `handle_shoot` (bullet, charge beam and missile)
-5. `handle_dash`
-6. Knockback lock timer, or `handle_horizontal_movement` (skipped while
-   dashing or locked by knockback)
-7. `update_animation`
-8. Invulnerability blink and timer
-9. `move_and_slide()` — the **only** place that moves the body
-10. Wall check that ends a dash
+2. `handle_slide` (starts, steers and keeps the ground slide moving)
+3. `handle_jump`
+4. `handle_aim`
+5. `handle_shoot` (bullet, charge beam and missile)
+6. `handle_dash`
+7. Knockback lock timer, or `handle_horizontal_movement` (skipped while
+   dashing, sliding or locked by knockback)
+8. `update_animation`
+9. Invulnerability blink and timer
+10. `move_and_slide()` — the **only** place that moves the body
+11. Slide end/clearance check (`_update_slide_after_move`)
+12. Wall check that ends a dash
 
 All systems only change `velocity`. Calling `move_and_slide()` more than once
 per frame would move the player twice.
@@ -139,6 +144,13 @@ skipped, `velocity.y` is held at zero and horizontal input is ignored. It ends
 when the distance is used, on touching a wall, or when damage is taken, and
 leaves no leftover velocity. See `DASH_LOGIC.md` for the full description.
 
+Slide
+-----
+`S` + `K` on the ground starts a low ground slide that uses a second, shorter
+collision shape and only stands up when the full standing shape fits (checked
+with a physics-space query). While it is active, jumping, shooting, charging and
+dashing are disabled. See `SLIDE_LOGIC.md`.
+
 Health, damage and knockback
 ----------------------------
 - `HealthComponent` is created in `_ready` with `max_health` (`100`) and
@@ -165,6 +177,7 @@ Animation
 
 | Condition | Animation |
 |---|---|
+| Sliding or recovering from a slide (and not hurt) | `slide` (kept for the whole slide; falls back to the rows below if the animation does not exist) |
 | Not on the floor, not dashing, moving up (`velocity.y < 0`) | `jump` |
 | Not on the floor, not dashing, otherwise | `fall` |
 | Not on the floor, dashing | Keeps the current animation (the dash zeroes `velocity.y`, which would otherwise switch to `fall`). |

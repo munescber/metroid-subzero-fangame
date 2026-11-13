@@ -78,9 +78,10 @@ radius = 6.0
 [node name="BouncingFireball" type="CharacterBody2D" unique_id=793771655]
 collision_layer = 8
 script = ExtResource("1_bounce")
-damage = 5
+damage = 10
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=242323503]
+scale = Vector2(1.5, 1)
 sprite_frames = SubResource("FireballSpriteFrames")
 animation = &"fade"
 frame = 3

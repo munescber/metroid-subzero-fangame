@@ -19,7 +19,7 @@ When the game starts, `SaveManager` waits 3 frames and calls `continue_from_save
 
 ## Overview
 
-1. The player stands in a `SavePoint` and presses Up. Health and missiles are refilled, then `SaveManager.save_game()` writes the slot.
+1. The player stands in a `SavePoint` and presses Up. Health and missiles are refilled (each controlled by its own export flag), then `SaveManager.save_game()` writes the slot.
 2. When the player dies, the level reloads. `SaveManager` applies the slot to the new level and `RoomManager.warp_to()` puts the player and camera at the save point.
 3. Progress made after the last save is lost, because only the slot is applied to the reloaded level.
 
@@ -34,8 +34,9 @@ Autoload that reads and writes `user://save_slot_1.json`. It knows nothing about
 | `load_game()` | Reads the slot into `data` and `world_flags`. Returns false (and leaves both empty) if it is missing, not valid JSON, has no `flags`, or has another `version` |
 | `apply_save()` | Hands each `saveable` node the dictionary stored under its `save_id` |
 | `set_flag(id, value)`, `get_flag(id)` | Records state for something that is about to remove itself |
-| `restart_from_save()` | Loads the slot, reloads its scene, waits 3 frames, then calls `restore_level()`. With no usable slot the level restarts from scratch. Call it without `await` |
+| `restart_from_save()` | Loads the slot, reloads its scene, waits 3 frames, then calls `restore_level()`. With no usable slot the level restarts from scratch. `MapManager.reset()` always runs first, so unsaved map discoveries and an unsaved map pickup are cleared before the slot is applied. Call it without `await` |
 | `restore_level()` | `apply_save()`, then moves the player to the save point named in the slot and calls `RoomManager.warp_to()` |
+| `start_new_game(scene_path)`, `continue_game()` | Used by the main menu, see `ui_logic/MAIN_MENU.md`. A new game deletes the slot; continue is `restart_from_save()` with a validity check first (await it) |
 | `find_save_point(id)`, `get_save_point_id()`, `has_save()`, `delete_save()` | Helpers |
 
 The file is written to `save_slot_1.json.tmp` first and then renamed, so a crash never leaves a half-written slot.
@@ -49,7 +50,7 @@ The file is written to `save_slot_1.json.tmp` first and then renamed, so a crash
 	"scene": "res://Scenes/Levels/demo_wrecked_ship_3.tscn",
 	"save_point": "save_room_southeast",
 	"flags": {
-		"player": { "max_health": 100, "health": 100, "missiles_unlocked": true, "missile_max_ammo": 105, "missile_ammo": 105 },
+		"player": { "max_health": 100, "health": 100, "missiles_unlocked": true, "missile_max_ammo": 105, "missile_ammo": 105, "charge_beam_unlocked": true, "dash_unlocked": true },
 		"gate_start_east": { "open": true },
 		"missile_exp_central": { "collected": true },
 		"boss_phantoon": { "defeated": true }
@@ -85,28 +86,31 @@ An empty `save_id` means the node is never saved. Set the id on the instance in 
 | Class | Exported id | Stored | On load |
 |---|---|---|---|
 | `Pickup` (for example `MissileExpansion`) | `save_id` | `collected` via `set_flag` | Frees itself. Drops from enemies have no id and are never saved |
-| `BreakableTile` | `save_id` | `destroyed` via `set_flag` | Frees itself |
 | `RoomGate` | `save_id` | `open`, only if open and not `close_again` | `open_instantly()` |
 | `RisingGate` | `save_id` | `open` | Jumps to the open position |
-| `RisingPlatform` | `save_id` | `raised` | Jumps to the raised position |
 | `Phantoon` | `save_id` | `defeated` via `set_flag` | Frees itself |
-| Player | built in (`"player"`) | max health, health, `missiles_unlocked`, `missile_max_ammo`, `missile_ammo` | Restores them |
+| `MapManager` | built in (`"map"`) | `visited`, `seen` (lists of `"x,y"` strings), `minimap_enabled` and `current` | Restores the minimap discoveries and whether the map was obtained |
+| Player | built in (`"player"`) | max health, health, `missiles_unlocked`, `missile_max_ammo`, `missile_ammo`, `charge_beam_unlocked`, `dash_unlocked` | Restores them |
 
-Gates set to `close_again` are never saved, because they return to closed.
+Gates set to `close_again` are never saved, because they return to closed. `BreakableTile` and `RisingPlatform` are intentionally not saved either: broken tiles come back and platforms start lowered whenever the level is reloaded.
 
-In `demo_wrecked_ship_3.tscn` every expansion, breakable tile, gate, platform and Phantoon has an id (for example `gate_start_east`, `bt_sw2_a_3`, `boss_phantoon`).
+In `demo_wrecked_ship_3.tscn` every expansion, gate and Phantoon has an id (for example `gate_start_east`, `boss_phantoon`).
 
 ## SavePoint
 
-An `Area2D` (mask: PlayerBody) with a small "GAME SAVED" label. The player stands inside and presses `interact_action` (default `up`). The script only polls input while the player is inside.
+An `Area2D` (mask: PlayerBody) that reports the result through `NotificationManager` (see `Docs/ui_logic/NOTIFICATION_SYSTEM.md`). The player stands inside and presses `interact_action` (default `up`). The script only polls input while the player is inside.
 
 | Property | Default | Meaning |
 |---|---|---|
 | `save_id` | empty | Unique id, stored in the slot as `save_point`. An empty id falls back to the node name with a warning |
 | `interact_action` | `up` | Input action that saves |
-| `refill_on_save` | on | Heals the player and refills missiles right before saving, so the slot holds full stats |
+| `refill_health_on_save` | on | Heals the player to full right before saving; turn off to store current HP instead |
+| `refill_missiles_on_save` | on | Refills missiles to max right before saving |
 | `sfx_saved` | none | Sound played through `AudioManager` |
-| `message_seconds` | 1.5 | How long the label shows |
+| `use_cutscene` | on | After a successful save, pauses the game, plays the shared `Cutscene` (`Scenes/Effects/obtain_cutscene.tscn`, the same layered animation as `MapPoint`), then shows a blocking notification (any key to dismiss) before resuming. Off: only a short non-pausing toast shows |
+| `notification_title` | `GAME SAVED` | Notification title |
+| `notification_message` | `Your progress has been saved.` | Notification message |
+| `notification_seconds` | 2.0 | How long the toast stays when `use_cutscene` is off (also used for "SAVE FAILED") |
 
 `saved` is emitted after a successful write. The node joins the group `save_point`. After a reload the player is placed at the save point's position, so put the node where the player should stand.
 
@@ -129,7 +133,7 @@ On death the player stops, emits `died`, waits `reload_delay` seconds (default 1
 ## Known limits
 
 - One slot, and saving is only possible at save points. There is no title screen, so the game always continues from the slot; delete the file for a new game.
-- Respawned enemy copies and the activation of buttons are not saved. A restored `RisingGate` or `RisingPlatform` ignores its button until it changes again.
+- Respawned enemy copies and the activation of buttons are not saved. A restored `RisingGate` ignores its button until it changes again.
 - The player is placed at the save point node's position. If it is above the floor, the player falls to it.
 - No fade or death animation yet: the level reloads after the delay.
 - The save stores one scene path, so every level that uses saves needs a scene that contains the player, camera, `RoomManager` and save points.

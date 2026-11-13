@@ -15,8 +15,6 @@ class_name RisingPlatform
 @export var trans_type: Tween.TransitionType = Tween.TRANS_QUAD
 @export var tile_size: float = 16.0
 
-## Stable id so the platform stays raised after saving. Leave empty to never save it.
-@export var save_id: String = ""
 @export var debug_enabled: bool = false
 
 @onready var body: AnimatableBody2D = $Body
@@ -38,21 +36,6 @@ func _ready() -> void:
 	else:
 		body.position = _lowered_local
 		is_raised = false
-	if save_id != "":
-		add_to_group("saveable")
-
-func get_save_data() -> Dictionary:
-	return {"raised": true} if is_raised else {}
-
-## Skips the movement and leaves the platform raised (used when loading a save).
-func load_save_data(data: Dictionary) -> void:
-	if not data.get("raised", false):
-		return
-	if _tween:
-		_tween.kill()
-	body.position = _raised_local
-	is_moving = false
-	is_raised = true
 
 func activate() -> void:
 	if debug_enabled:

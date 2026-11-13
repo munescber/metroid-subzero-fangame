@@ -42,6 +42,7 @@ var direction := 1
 # ==================================================
 
 func _ready():
+	add_to_group("zoomer")
 	sprite.play("idle")
 
 	# add HealthComponent at runtime using the exported health value
@@ -102,6 +103,7 @@ func _ready():
 			hb.set("damage", contact_damage)
 			hb.set("one_shot", false)
 			hb.set("source", self)
+			hb.set("ignore_group", &"zoomer")
 
 
 
@@ -110,12 +112,44 @@ func _ready():
 # Main Physics Loop
 # ==================================================
 
+const BUMP_DISTANCE_X := 16.0
+const BUMP_DISTANCE_Y := 8.0
+const BUMP_COOLDOWN := 0.5
+
+# Time left before another zoomer can make us turn around again.
+var _bump_cooldown_left := 0.0
+
 func _physics_process(delta):
 
 	apply_gravity(delta)
+	_bump_cooldown_left = max(_bump_cooldown_left - delta, 0.0)
+	if _bump_cooldown_left == 0.0 and _is_blocked_by_other_zoomer():
+		_turn_around()
 	patrol()
 
 	move_and_slide()
+
+
+# ==================================================
+# Zoomer vs Zoomer
+# ==================================================
+
+# Another zoomer directly ahead on the same surface is treated like a wall.
+func _is_blocked_by_other_zoomer() -> bool:
+	if direction == 0:
+		return false
+	for other in get_tree().get_nodes_in_group("zoomer"):
+		if other == self or not (other is Node2D) or other.is_dying:
+			continue
+		var offset: Vector2 = other.global_position - global_position
+		if abs(offset.y) <= BUMP_DISTANCE_Y and sign(offset.x) == direction and abs(offset.x) <= BUMP_DISTANCE_X:
+			return true
+	return false
+
+# Head back toward the previous patrol point.
+func _turn_around() -> void:
+	current_point_index = (current_point_index - 1 + point_positions.size()) % point_positions.size()
+	_bump_cooldown_left = BUMP_COOLDOWN
 
 
 

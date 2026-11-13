@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="WorldMapData" format=3 uid="uid://d3ifx2gi11qio"]
+
+[ext_resource type="Script" uid="uid://ymeqlypy1vwt" path="res://Scripts/Levels/world_map_data.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://dmluw87r61h2k" path="res://Scripts/Levels/map_room_data.gd" id="2_roomscript"]
+[ext_resource type="Texture2D" uid="uid://cmy8l4t16w75j" path="res://Resources/Map/Icons/tile_plain.tres" id="2_unexplored"]
+[ext_resource type="Resource" uid="uid://bvisqsy3mhupj" path="res://Resources/Map/Rooms/start.tres" id="3_start"]
+[ext_resource type="Resource" uid="uid://ck2dhuvehot2m" path="res://Resources/Map/Rooms/central.tres" id="4_central"]
+[ext_resource type="Resource" uid="uid://bg5sh4t1kaidf" path="res://Resources/Map/Rooms/spikes.tres" id="5_spikes"]
+[ext_resource type="Resource" uid="uid://bxjajxcsike5a" path="res://Resources/Map/Rooms/tunnels.tres" id="6_tunnels"]
+[ext_resource type="Resource" uid="uid://ch4ay7g4kle5m" path="res://Resources/Map/Rooms/shipcargo.tres" id="7_southwest2"]
+[ext_resource type="Resource" uid="uid://dmy1udph8yt2d" path="res://Resources/Map/Rooms/south.tres" id="8_south"]
+[ext_resource type="Resource" uid="uid://byfoq4ose4u7e" path="res://Resources/Map/Rooms/southeast_gate.tres" id="9_southeast_gate"]
+[ext_resource type="Resource" uid="uid://cqkr2h04slm8x" path="res://Resources/Map/Rooms/southeast2.tres" id="10_southeast2"]
+[ext_resource type="Resource" uid="uid://dkb7rju28vis2" path="res://Resources/Map/Rooms/redpillars.tres" id="11_redpillars"]
+[ext_resource type="Resource" uid="uid://dnnl2d265sb6c" path="res://Resources/Map/Rooms/southeast_saveroom.tres" id="12_southeast_saveroom"]
+[ext_resource type="Resource" uid="uid://c2xj48y2hp0dr" path="res://Resources/Map/Rooms/missiles_1.tres" id="13_southwest3_missiles"]
+[ext_resource type="Resource" path="res://Resources/Map/Rooms/walkmap.tres" id="14_walkmap"]
+[ext_resource type="Resource" path="res://Resources/Map/Rooms/getmap.tres" id="15_getmap"]
+
+[resource]
+script = ExtResource("1_script")
+rooms = Array[ExtResource("2_roomscript")]([ExtResource("3_start"), ExtResource("4_central"), ExtResource("5_spikes"), ExtResource("6_tunnels"), ExtResource("7_southwest2"), ExtResource("8_south"), ExtResource("9_southeast_gate"), ExtResource("10_southeast2"), ExtResource("11_redpillars"), ExtResource("12_southeast_saveroom"), ExtResource("13_southwest3_missiles"), ExtResource("14_walkmap"), ExtResource("15_getmap")])
+unexplored_icon = ExtResource("2_unexplored")

@@ -15,8 +15,10 @@ Defines one room as a block of `screens` standard screen cells (256x240 each). `
 |---|---|---|
 | `camera_mode` | `FIXED_SCREEN` | `FIXED_SCREEN`: one screen at a time with slides between screens. `SMOOTH_FOLLOW`: camera follows the player inside the region. Never inferred from size |
 | `screens` | `(1,1)` | Room size in screens (x = columns, y = rows); minimum 1x1 |
+| `map_room` | empty | `MapRoomData` for the minimap. Empty = the room is off the map. The inspector warns if its `size` differs from `screens` or its `icons` count is wrong |
 | `connects_to` | `[]` | Paths (relative to this node) to other regions this one connects to |
 | `respawn_delay` | `0` | Seconds after a respawnable enemy dies before a fresh copy appears while the player stays in the room (0 = only when the player comes back) |
+| `banner_title` | empty | Title of the banner shown when the player enters the room (e.g. `SAVE STATION`). Empty = no banner. See `Docs/ui_logic/ROOM_BANNER.md` |
 
 ## Connection rules
 
@@ -63,6 +65,7 @@ With `respawn_delay` above 0, an enemy that dies while the room is active is rep
 ## Hooks and helpers
 
 - `allows_exit(cell, dir)` returns `true` by default. It is a hook for future locked doors and one-way exits; override or extend it to close an exit.
+- `get_map_cell(cell, room_origin)` returns the world-map cell for a camera cell inside this region (`map_room.map_position` plus the offset from the region's first cell).
 - `get_world_rect()` returns the region's world-space rectangle.
 - `is_connected_to(other)` checks `connects_to`.
 - `get_entry_marker(dir)` returns the marker for a movement direction, or null.

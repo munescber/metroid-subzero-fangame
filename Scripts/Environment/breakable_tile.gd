@@ -37,8 +37,6 @@ const ANIM_BREAKING := &"breaking"  # must not loop, or animation_finished never
 	set(value):
 		collision_offset = value
 		_apply_collision()
-## Stable id so the tile stays broken after saving. Leave empty for tiles that always come back.
-@export var save_id: String = ""
 @export var debug_enabled: bool = false
 
 var health_comp: HealthComponent = null
@@ -53,16 +51,6 @@ func _ready() -> void:
 	health_comp.set_max_health(max_health)
 	add_child(health_comp)
 	health_comp.died.connect(_on_died)
-	if save_id != "":
-		add_to_group("saveable")
-
-## A broken tile removes itself, so it reports through SaveManager.set_flag() instead.
-func get_save_data() -> Dictionary:
-	return {}
-
-func load_save_data(data: Dictionary) -> void:
-	if data.get("destroyed", false):
-		queue_free()
 
 func _apply_visuals() -> void:
 	if not is_node_ready():
@@ -100,8 +88,6 @@ func _on_died() -> void:
 	if _is_destroyed:
 		return
 	_is_destroyed = true
-	if save_id != "":
-		SaveManager.set_flag(save_id, {"destroyed": true})
 	if debug_enabled:
 		print_debug("[BreakableTile] destroyed")
 	# physics callbacks may be running, so shapes are disabled deferred

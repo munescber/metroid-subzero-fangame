@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="MapRoomData" format=3 uid="uid://ck2dhuvehot2m"]
+
+[ext_resource type="Script" uid="uid://dmluw87r61h2k" path="res://Scripts/Levels/map_room_data.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://dwrvby44uqo33" path="res://Resources/Map/Icons/tile_door_horizontal_two_doors_1.tres" id="2_two_doors"]
+[ext_resource type="Texture2D" uid="uid://bkfdc16tk0k71" path="res://Resources/Map/Icons/tile_door_horizontal_two_doors_2.tres" id="3_two_doors"]
+[ext_resource type="Texture2D" uid="uid://cv6la2veu7vck" path="res://Resources/Map/Icons/tile_door_horizontal_two_doors_3.tres" id="4_two_doors"]
+
+[resource]
+script = ExtResource("1_script")
+level_id = &"wrecked_ship"
+room_id = &"central"
+map_position = Vector2i(2, -1)
+size = Vector2i(1, 3)
+icons = Array[Texture2D]([ExtResource("3_two_doors"), ExtResource("2_two_doors"), ExtResource("4_two_doors")])

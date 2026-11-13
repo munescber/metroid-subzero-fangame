@@ -24,10 +24,15 @@
 [ext_resource type="Texture2D" uid="uid://latjutj7ek3h" path="res://Spritesheets/Rundas/rundas_walk_aim_up.png" id="10_74mp2"]
 [ext_resource type="Texture2D" uid="uid://gm81assjdtv4" path="res://Spritesheets/Rundas/rundas_jump_aim_diagonal_up.png" id="11_7g0yx"]
 [ext_resource type="PackedScene" uid="uid://bl5a5h58kkgws" path="res://Scenes/UI/hud.tscn" id="11_hud"]
+[ext_resource type="Texture2D" uid="uid://cjajph1sikmwa" path="res://Spritesheets/Rundas/rundas_faceforward.png" id="12_bmb2s"]
 [ext_resource type="Texture2D" uid="uid://b3de2euyasb77" path="res://Spritesheets/Rundas/rundas_walk_aim_diagonal_up.png" id="12_dey5f"]
+[ext_resource type="Texture2D" uid="uid://dm7hf3cwg0eeh" path="res://Spritesheets/Rundas/rundas_slide.png" id="20_ythyg"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_kymcg"]
 size = Vector2(7, 14.5)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_slide"]
+size = Vector2(22, 10)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_charge"]
 atlas = ExtResource("5_beams")
@@ -36,6 +41,10 @@ region = Rect2(0, 24, 8, 8)
 [sub_resource type="AtlasTexture" id="AtlasTexture_gk6dx"]
 atlas = ExtResource("3_jlvik")
 region = Rect2(0, 0, 16, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_j6uq4"]
+atlas = ExtResource("12_bmb2s")
+region = Rect2(0, 0, 32, 32)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_bmb2s"]
 atlas = ExtResource("6_gk6dx")
@@ -76,6 +85,10 @@ region = Rect2(0, 0, 16, 32)
 [sub_resource type="AtlasTexture" id="AtlasTexture_jhyir"]
 atlas = ExtResource("7_gk6dx")
 region = Rect2(0, 0, 16, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_h5u0x"]
+atlas = ExtResource("20_ythyg")
+region = Rect2(0, 0, 32, 32)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_2ahak"]
 atlas = ExtResource("9_oikmp")
@@ -185,6 +198,14 @@ animations = [{
 }, {
 "frames": [{
 "duration": 1.0,
+"texture": SubResource("AtlasTexture_j6uq4")
+}],
+"loop": 1,
+"name": &"face_forward",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
 "texture": SubResource("AtlasTexture_bmb2s")
 }],
 "loop": 0,
@@ -256,6 +277,14 @@ animations = [{
 }],
 "loop": 0,
 "name": &"jump_aim_up",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_h5u0x")
+}],
+"loop": 1,
+"name": &"slide",
 "speed": 5.0
 }, {
 "frames": [{
@@ -345,6 +374,9 @@ animations = [{
 "speed": 8.0
 }]
 
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_slide_hurt"]
+size = Vector2(22, 10)
+
 [node name="player_rundas" type="CharacterBody2D" unique_id=437530251]
 position = Vector2(1, 0)
 collision_layer = 2
@@ -358,6 +390,7 @@ sfx_spin_jump = ExtResource("6_ythyg")
 sfx_missile = ExtResource("5_rqdc0")
 sfx_land = ExtResource("8_bmb2s")
 sfx_walk = ExtResource("9_ur3l4")
+slide_duration = 0.3
 knockback_x = 140.0
 knockback_y = 160.0
 
@@ -365,6 +398,11 @@ knockback_y = 160.0
 position = Vector2(0, 1.5)
 scale = Vector2(2, 2)
 shape = SubResource("RectangleShape2D_kymcg")
+
+[node name="SlideCollisionShape2D" type="CollisionShape2D" parent="." unique_id=488730037]
+position = Vector2(0, 11)
+shape = SubResource("RectangleShape2D_slide")
+disabled = true
 
 [node name="Muzzle" type="Marker2D" parent="." unique_id=543812334]
 position = Vector2(13, 0)
@@ -393,7 +431,7 @@ position = Vector2(11, 9)
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=181990051]
 sprite_frames = SubResource("SpriteFrames_6ce0r")
-animation = &"idle_aim_diagonal_up"
+animation = &"face_forward"
 autoplay = "idle"
 
 [node name="Hurtbox" type="Area2D" parent="." unique_id=981234567]
@@ -405,5 +443,10 @@ script = ExtResource("4_hurtbox")
 position = Vector2(0, 1.359375)
 scale = Vector2(2, 2)
 shape = SubResource("RectangleShape2D_kymcg")
+
+[node name="SlideCollisionShape2D" type="CollisionShape2D" parent="Hurtbox" unique_id=253337454]
+position = Vector2(0, 11)
+shape = SubResource("RectangleShape2D_slide_hurt")
+disabled = true
 
 [node name="HUD" parent="." unique_id=1993046757 instance=ExtResource("11_hud")]

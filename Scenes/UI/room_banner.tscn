@@ -1,0 +1,40 @@
+[gd_scene format=3 uid="uid://0vpabvd50j81"]
+
+[ext_resource type="Script" uid="uid://i1ekkgarnsq7" path="res://Scripts/UI/room_banner_ui.gd" id="1_script"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bar"]
+bg_color = Color(0, 0, 0, 1)
+border_width_bottom = 1
+border_color = Color(1, 0.9, 0.1, 1)
+
+[node name="RoomBanner" type="CanvasLayer" unique_id=1705165921]
+layer = 20
+visible = false
+script = ExtResource("1_script")
+shown_y = 32.0
+
+[node name="Bar" type="Panel" parent="." unique_id=338759737]
+unique_name_in_owner = true
+texture_filter = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = -16.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bar")
+
+[node name="Title" type="Label" parent="Bar" unique_id=374962043]
+unique_name_in_owner = true
+texture_filter = 1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_bottom = -1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 0.9, 0.1, 1)
+theme_override_font_sizes/font_size = 8
+text = "TITLE"
+horizontal_alignment = 1
+vertical_alignment = 1

@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Environment/level_music.gd" id="1_music"]
+
+[node name="LevelMusic" type="Node"]
+script = ExtResource("1_music")

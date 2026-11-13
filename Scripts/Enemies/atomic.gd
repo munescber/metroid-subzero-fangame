@@ -69,7 +69,7 @@ var player_detected: bool = false
 @export var electric_field_duration: float = 2.0
 @export var electric_field_radius: float = 24.0
 @export var electric_field_damage: int = 5
-@export var electric_field_damage_tick: float = 0.5  # how often the field re-checks for player damage
+@export var electric_field_damage_tick: float = 0.1  # how often the field re-checks for player damage
 @export var electric_field_cooldown: float = 1.5
 
 var electric_field_interval_timer: float = 0.0
@@ -88,6 +88,9 @@ var field_active: bool = false
 
 const GLOW_COLOR_IDLE := Color(1, 1, 1, 1)
 const GLOW_COLOR_CHARGED := Color(1, 0.85, 0.15, 1)
+const CHARGE_HALO_COLOR := Color(1, 0.9, 0.2, 1)
+const CHARGE_HALO_RADIUS := 20.0
+const CHARGE_SCALE_PULSE := 0.2  # extra sprite scale at the peak of a pulse, at full charge
 
 var field_visual_base_scale: Vector2 = Vector2.ONE  # scene-authored scale of the field sprite at full size
 
@@ -98,6 +101,20 @@ var field_visual_base_scale: Vector2 = Vector2.ONE  # scene-authored scale of th
 @onready var hurtbox: Area2D = $Hurtbox
 @onready var contact_damage_area: Area2D = $ContactDamage
 @onready var damage_flash_timer: Timer = $DamageFlashTimer
+
+# ==============================================================================
+# SOUNDS
+# ==============================================================================
+
+@export_group("Sounds")
+## Loops while the electric field is charging up. Leave empty for silence.
+@export var sfx_charge_loop: AudioStream
+## Loops while the electric field is fully active. Leave empty for silence.
+@export var sfx_electric_field_loop: AudioStream
+@export_group("")
+
+var _charge_loop_player: AudioStreamPlayer2D
+var _field_loop_player: AudioStreamPlayer2D
 
 # ==============================================================================
 # DEATH
@@ -202,6 +219,16 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 func _draw() -> void:
+	# Electric telegraph: a pulsing halo behind the sprite. It grows and brightens while charging, stays at
+	# full strength for as long as the field is on, and fades out with the glow during the cooldown.
+	var halo := _halo_strength()
+	if halo > 0.0:
+		var pulse := _charge_pulse() if current_state == State.ELECTRIC_CHARGING else _steady_pulse()
+		for i in 3:
+			var ring := 1.0 - i * 0.25
+			var alpha := (0.15 + 0.35 * halo) * (0.5 + 0.5 * pulse) * (i + 1) / 3.0
+			draw_circle(Vector2.ZERO, CHARGE_HALO_RADIUS * (0.6 + 0.6 * halo) * ring, Color(CHARGE_HALO_COLOR, alpha))
+	
 	# Visualizes the electric field's actual hit radius (debug_enabled only) since the sprite itself stays a fixed size
 	if not debug_enabled or not electric_field_area:
 		return
@@ -292,8 +319,12 @@ func _update_electric_charging(delta: float) -> void:
 	
 	var progress = clamp(electric_charge_timer / electric_charge_duration, 0.0, 1.0)
 	glow_intensity = progress * 2.0
+	var pulse := _charge_pulse()
 	if animated_sprite:
-		animated_sprite.modulate = GLOW_COLOR_IDLE.lerp(GLOW_COLOR_CHARGED, progress)
+		# The colour flickers toward the charged tint, and the flicker gets stronger as the charge builds
+		animated_sprite.modulate = GLOW_COLOR_IDLE.lerp(GLOW_COLOR_CHARGED, progress * (0.5 + 0.5 * pulse))
+	visuals.scale = Vector2.ONE * (1.0 + CHARGE_SCALE_PULSE * progress * pulse)
+	queue_redraw()
 	
 	if electric_charge_timer == 0.0 and debug_enabled:
 		print_debug("[Atomic] CHARGING electric field! Intensity building...")
@@ -309,11 +340,33 @@ func _update_electric_charging(delta: float) -> void:
 # ELECTRIC FIELD STATE
 # ==============================================================================
 
+# 0..1 strength of the halo for the current state
+func _halo_strength() -> float:
+	match current_state:
+		State.ELECTRIC_CHARGING:
+			return clampf(electric_charge_timer / electric_charge_duration, 0.0, 1.0)
+		State.ELECTRIC_FIELD:
+			return 1.0
+		State.COOLDOWN:
+			return glow_intensity / 2.0
+	return 0.0
+
+# Pulse at the fastest charge rate, for while the field is on
+func _steady_pulse() -> float:
+	return 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * 6.0)
+
+# 0..1 wave that pulses faster the closer the charge is to completing
+func _charge_pulse() -> float:
+	var progress := clampf(electric_charge_timer / electric_charge_duration, 0.0, 1.0)
+	return 0.5 + 0.5 * sin(electric_charge_timer * TAU * lerpf(2.0, 6.0, progress))
+
 func _update_electric_field(delta: float) -> void:
 	current_velocity = Vector2.ZERO
 	glow_intensity = 2.0
 	if animated_sprite:
 		animated_sprite.modulate = GLOW_COLOR_CHARGED
+	visuals.scale = Vector2.ONE * (1.0 + CHARGE_SCALE_PULSE * _steady_pulse())
+	queue_redraw()
 	
 	if electric_field_timer == 0.0 and debug_enabled:
 		print_debug("[Atomic] ELECTRIC FIELD ACTIVATED! Radius: ", electric_field_radius, " Damage: ", electric_field_damage)
@@ -432,6 +485,7 @@ func _update_cooldown(delta: float) -> void:
 	glow_intensity = max(0.0, glow_intensity - 2.0 * delta)
 	if animated_sprite:
 		animated_sprite.modulate = GLOW_COLOR_IDLE.lerp(GLOW_COLOR_CHARGED, glow_intensity / 2.0)
+	queue_redraw()
 	
 	electric_cooldown_timer += delta
 	if electric_cooldown_timer >= electric_field_cooldown:
@@ -447,6 +501,11 @@ func _transition_to_state(new_state: State) -> void:
 		print_debug("[Atomic] State transition: %s → %s" % [State.keys()[current_state], State.keys()[new_state]])
 	
 	current_state = new_state
+	visuals.scale = Vector2.ONE
+	queue_redraw()
+	
+	_charge_loop_player = _sync_loop(_charge_loop_player, sfx_charge_loop, new_state == State.ELECTRIC_CHARGING)
+	_field_loop_player = _sync_loop(_field_loop_player, sfx_electric_field_loop, new_state == State.ELECTRIC_FIELD)
 	
 	# Reset timers based on new state
 	match new_state:
@@ -468,6 +527,30 @@ func _transition_to_state(new_state: State) -> void:
 			hurtbox.set_deferred("monitoring", true)
 		State.FLOATING:
 			electric_field_interval_timer = 0.0
+
+# Starts or stops a looping sound; returns the (lazily created) player.
+func _sync_loop(loop_player: AudioStreamPlayer2D, stream: AudioStream, active: bool) -> AudioStreamPlayer2D:
+	if not active:
+		if loop_player:
+			loop_player.stop()
+		return loop_player
+	if stream == null:
+		return loop_player
+	if loop_player == null:
+		loop_player = AudioStreamPlayer2D.new()
+		loop_player.bus = AudioManager.BUS_SFX
+		# restart on finish so it loops even if the imported stream has looping off
+		loop_player.finished.connect(_on_loop_finished.bind(loop_player))
+		add_child(loop_player)
+	loop_player.stream = stream
+	loop_player.play()
+	return loop_player
+
+
+func _on_loop_finished(loop_player: AudioStreamPlayer2D) -> void:
+	var state_for_loop := State.ELECTRIC_CHARGING if loop_player == _charge_loop_player else State.ELECTRIC_FIELD
+	if current_state == state_for_loop:
+		loop_player.play()
 
 # ==============================================================================
 # GLOW/VISUAL UPDATES

@@ -14,10 +14,10 @@ into a level and pointed at any target — it has no knowledge of
 
 ## What it does
 
-An `Area2D` that reacts to two independent trigger paths and calls
-`activate()`/`toggle()` on whatever `target_path` points to:
+An `Area2D` that reacts only to the player's projectiles and calls
+`activate()`/`toggle()` on whatever `target_path` points to. Player contact
+(stepping on / touching it) does **not** trigger it.
 
-- **Stepped on** — `body_entered`, checks `body.is_in_group("player")`.
 - **Shot** — `area_entered`, checks that the entering area's parent `is
   Bullet` (normal shot and `ChargeBeam`, which extends `Bullet`) or `is
   Missile` (`class_name Missile` in `missile.gd`). This intentionally
@@ -30,7 +30,7 @@ An `Area2D` that reacts to two independent trigger paths and calls
 
 - `collision_layer = 0` — the button itself is never something else
   collides *into*; it only listens.
-- `collision_mask = 2 | 8` (PlayerBody + Hitbox).
+- `collision_mask = 8` (Hitbox only; PlayerBody is deliberately not monitored).
 - Trigger shape is 17.6×17.6, baked into the scene. Keep instance scale at 1
   in levels so every button has the same sensitivity.
 

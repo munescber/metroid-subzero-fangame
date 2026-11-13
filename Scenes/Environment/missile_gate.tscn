@@ -1,0 +1,111 @@
+[gd_scene format=3 uid="uid://c3d0kjlc2qpox"]
+
+[ext_resource type="Script" uid="uid://llha5lomoayn" path="res://Scripts/Environment/missile_gate.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://gxmxv3u32250" path="res://Spritesheets/missile_gate.png" id="2_sheet"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_baxw3"]
+atlas = ExtResource("2_sheet")
+region = Rect2(0, 0, 16, 48)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_d1d0t"]
+atlas = ExtResource("2_sheet")
+region = Rect2(0, 0, 16, 48)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_cfuqr"]
+atlas = ExtResource("2_sheet")
+region = Rect2(16, 0, 16, 48)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_qsenl"]
+atlas = ExtResource("2_sheet")
+region = Rect2(32, 0, 16, 48)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_e73p5"]
+atlas = ExtResource("2_sheet")
+region = Rect2(0, 48, 16, 48)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_q3xok"]
+atlas = ExtResource("2_sheet")
+region = Rect2(16, 48, 16, 48)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_7k2h8"]
+atlas = ExtResource("2_sheet")
+region = Rect2(32, 48, 16, 48)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_1o4if"]
+atlas = ExtResource("2_sheet")
+region = Rect2(0, 96, 16, 48)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_jwyds"]
+atlas = ExtResource("2_sheet")
+region = Rect2(16, 96, 16, 48)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_p8x1h"]
+atlas = ExtResource("2_sheet")
+region = Rect2(32, 96, 16, 48)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_gate"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_baxw3")
+}],
+"loop": 1,
+"name": &"idle",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_d1d0t")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_cfuqr")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_qsenl")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_e73p5")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_q3xok")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_7k2h8")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_1o4if")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_jwyds")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_p8x1h")
+}],
+"loop": 0,
+"name": &"open",
+"speed": 10.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(16, 48)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_detector"]
+size = Vector2(18, 52)
+
+[node name="MissileGate" type="StaticBody2D" unique_id=92771935]
+script = ExtResource("1_script")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=406545558]
+sprite_frames = SubResource("SpriteFrames_gate")
+animation = &"idle"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1947562246]
+shape = SubResource("RectangleShape2D_body")
+
+[node name="MissileDetector" type="Area2D" parent="." unique_id=93151743]
+collision_layer = 0
+collision_mask = 8
+monitorable = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="MissileDetector" unique_id=1247539987]
+shape = SubResource("RectangleShape2D_detector")

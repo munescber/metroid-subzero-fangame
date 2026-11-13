@@ -2,17 +2,126 @@ extends CharacterBody2D
 
 class_name Phantoon
 
-# Debug toggle
+## Emitted once the death fade has finished, just before the node frees itself. A boss encounter
+## listens to this (not to `tree_exiting`, which also fires when the level is reloaded).
+signal defeated
+
+# ============================================================================
+# Inspector settings
+# ============================================================================
+
+@export_category("General")
 @export var debug_enabled: bool = false
 ## Stable id so the boss stays defeated after saving.
 @export var save_id: String = ""
+@export var max_health: int = 100
+@export var contact_damage_value: int = 1
 
-# Feature Toggles (disable specific attacks/states for testing)
+## Disable specific attacks/states to test the rest of the fight in isolation.
 @export_category("Feature Toggles")
 @export var enable_dash: bool = true
 @export var enable_burst_attack: bool = true
 @export var enable_bounce_attack: bool = true
 @export var enable_intangibility: bool = true
+
+@export_category("Movement")
+@export_group("Orbit")
+## Overwritten in _ready so the boss's spawn position is already on the ring.
+@export var arena_center: Vector2 = Vector2.ZERO
+@export var orbit_radius: float = 40.0
+@export var orbit_speed: float = 1.5
+## How long to orbit before pausing and attacking.
+@export var orbit_duration: float = 3.0
+@export_group("Dash")
+@export var pause_duration: float = 1.0
+@export var dash_speed: float = 200.0
+## Safety cap: the dash ends after this even if it hasn't arrived.
+@export var dash_duration: float = 0.5
+## Ring + path line at the dash target.
+@export var show_dash_marker: bool = true
+
+@export_category("Attacks")
+@export_group("Windup")
+## Windup glow before an attack spawns.
+@export var attack_telegraph_duration: float = 0.4
+@export_group("Radial Burst")
+## Phase 1 burst size.
+@export var burst_projectile_count: int = 6
+## Phase 2 burst size: one every 45 degrees.
+@export var phase_2_burst_count: int = 8
+## Distance from the boss center each burst projectile spawns at.
+@export var burst_spawn_offset: float = 24.0
+@export var phase_1_burst_speed: float = 100.0
+@export var phase_2_burst_speed: float = 150.0
+@export var phase_1_burst_rotation: float = 0.0
+## Straight up: the first projectile is at 0 degrees, then every 45.
+@export var phase_2_burst_rotation: float = -PI / 2.0
+## Seconds the ring hovers before every projectile launches at once.
+@export var burst_hold_duration: float = 0.5
+@export_group("Bouncing Fireballs")
+@export var phase_1_bounce_count: int = 6
+@export var phase_2_bounce_count: int = 8
+## How far above the boss the fireball curtain spawns.
+@export var bounce_spawn_height: float = 40.0
+## Horizontal distance between fireballs in the curtain.
+@export var bounce_spacing: float = 20.0
+## Max random sideways speed (px/s) when a fireball falls; 0 = straight down.
+@export var bounce_horizontal_drift: float = 50.0
+@export var bounce_gravity: float = 300.0
+## Seconds between each fireball starting to fall (the curtain sweep).
+@export var bounce_release_delay: float = 0.12
+
+## Defensive: the boss phases out and keeps orbiting. Its only attack then is the Flame Wall.
+@export_category("Intangibility")
+## Tangible time between intangible phases.
+@export var intangible_interval: float = 15.0
+## How long the intangible state lasts.
+@export var intangible_duration: float = 3.0
+## Flicker before phasing out.
+@export var intangible_warning_duration: float = 0.5
+## 0.0 = invisible, 1.0 = visible.
+@export var intangible_fade_amount: float = 0.5
+
+## Cast while intangible. A column of flames flies along the floor from one wall and has to be
+## jumped over, so it must stay clearable by a full jump: never above 4 flames.
+@export_category("Flame Wall")
+@export var enable_flame_wall: bool = true
+@export_group("Column")
+## Flames per column (capped at FLAME_WALL_MAX_FLAMES).
+@export_range(1, 4) var wall_flame_count: int = 4
+## Vertical pitch; the column is count * spacing tall.
+@export var wall_flame_spacing: float = 16.0
+## Gap kept between the column and the wall. Must clear anything that sticks out of the wall (a
+## closed room gate reaches about 13px into the room), or that side is rejected.
+@export var wall_spawn_margin: float = 24.0
+@export_group("Timing")
+## Seconds after phasing out before the first wave spawns.
+@export var wall_cast_delay: float = 0.8
+## Telegraph: the column hovers, then every flame launches at once.
+@export var wall_hold_duration: float = 0.6
+## Phase 2: seconds between the two waves.
+@export var wall_wave_gap: float = 0.7
+@export_group("Flight")
+@export var wall_speed: float = 140.0
+## Seconds a flame flies once launched (enough to cross a room).
+@export var wall_lifetime: float = 4.0
+
+## Guaranteed, not rolled. They scatter horizontally around the boss.
+@export_category("Death Drops")
+@export var death_health_drops: int = 10
+@export var death_missile_drops: int = 10
+## Max horizontal scatter in pixels.
+@export var death_drop_spread: float = 48.0
+## Seconds the pickups stay (the usual drop time is shorter).
+@export var death_drop_lifetime: float = 20.0
+
+## Helpers for trying the fight out. Leave off for the real fight.
+@export_category("Testing")
+## Phases out again every `test_intangible_interval` seconds instead of `intangible_interval`.
+@export var test_loop_intangibility: bool = false
+@export var test_intangible_interval: float = 1.0
+## 0 = normal. 1 or 2 starts the fight in that phase (2 applies the phase 2 changes at spawn).
+@export_range(0, 2) var test_start_phase: int = 0
 
 # Boss states. Intangibility is not a state: it is an overlay (is_intangible) on top of ORBIT,
 # so the boss keeps orbiting while phased out and never gets cut off mid-attack.
@@ -32,25 +141,16 @@ var pending_attack: int = AttackType.BURST
 var radial_projectile_scene: PackedScene = null
 var bounce_projectile_scene: PackedScene = null
 
-# Movement configuration
-@export var arena_center: Vector2 = Vector2.ZERO
-@export var orbit_radius: float = 40.0
-@export var orbit_speed: float = 1.5
+# Movement state
 var orbit_direction: float = 1.0  # 1.0 = clockwise, -1.0 = counter-clockwise
 var orbit_angle: float = 0.0
 
-# Health configuration
-@export var max_health: int = 100
+# Health state
 var phase: int = 1
 var phase_2_triggered: bool = false
 
 # State timers
 var state_timer: float = 0.0
-@export var pause_duration: float = 1.0
-@export var dash_duration: float = 0.5  # Safety cap: the dash ends after this even if it hasn't arrived
-@export var dash_speed: float = 200.0
-@export var attack_telegraph_duration: float = 0.4  # Windup glow before an attack spawns
-@export var show_dash_marker: bool = true  # Ring + path line at the dash target
 var dash_target: Vector2 = Vector2.ZERO
 
 # References
@@ -60,47 +160,17 @@ var dash_target: Vector2 = Vector2.ZERO
 @onready var contact_damage: Node = $ContactDamage
 @onready var hurtbox: Area2D = $Hurtbox
 
-# Contact damage configuration
-@export var contact_damage_value: int = 1
-
 # Attack timing
 var attack_timer: float = 0.0
-@export var orbit_duration: float = 3.0  # How long to orbit before pausing
 
-# Intangible configuration (defensive: the boss phases out and keeps orbiting, no attacks)
-@export var intangible_interval: float = 15.0  # Tangible time between intangible phases
-@export var intangible_duration: float = 3.0  # How long intangible state lasts
-@export var intangible_warning_duration: float = 0.5  # Flicker before phasing out
-@export var intangible_fade_amount: float = 0.5  # 0.0 = invisible, 1.0 = visible
+# Intangible state
 var is_intangible: bool = false
 var intangible_timer: float = 0.0
 var intangible_state_timer: float = 0.0
 var intangible_warning_timer: float = 0.0
 
-# Attack configuration (Stage 8 & 9)
-@export var burst_projectile_count: int = 6  # Phase 1 burst size
-@export var phase_2_burst_count: int = 8  # Phase 2 burst size: one every 45 degrees
-@export var burst_spawn_offset: float = 24.0  # Distance from boss center each burst projectile spawns at
-@export var phase_1_burst_speed: float = 100.0
-@export var phase_2_burst_speed: float = 150.0
-@export var phase_1_burst_rotation: float = 0.0
-@export var phase_2_burst_rotation: float = -PI / 2.0  # Straight up: the first projectile is at 0 degrees, then every 45
-@export var phase_1_bounce_count: int = 6
-@export var phase_2_bounce_count: int = 8
-@export var bounce_spawn_height: float = 40.0  # How far above the boss the fireball curtain spawns
-@export var bounce_spacing: float = 20.0  # Horizontal distance between fireballs in the curtain
-@export var bounce_horizontal_drift: float = 50.0  # Max random sideways speed (px/s) when a fireball falls; 0 = straight down
-@export var burst_hold_duration: float = 0.5  # Seconds the burst ring hovers before every projectile launches at once
-@export var bounce_gravity: float = 300.0
-@export var bounce_release_delay: float = 0.12  # Seconds between each fireball starting to fall (the curtain sweep)
+# Bounce attack state
 var bounce_sweep_direction: float = 1.0  # 1.0 = left to right, -1.0 = right to left; flips every cast
-
-# Death drops: guaranteed, not rolled. They scatter horizontally around the boss.
-@export_category("Death Drops")
-@export var death_health_drops: int = 10
-@export var death_missile_drops: int = 10
-@export var death_drop_spread: float = 48.0  # Max horizontal scatter in pixels
-@export var death_drop_lifetime: float = 20.0  # Seconds the pickups stay (the usual drop time is shorter)
 
 # Visual feedback
 const DAMAGE_FLASH_COLOR := Color(1, 0.5, 0.5, 1)
@@ -110,8 +180,17 @@ const WINDUP_COLOR := Color(1.6, 1.2, 0.6, 1)  # Warm yellow glow before any att
 const FIREBALL_WALL_MARGIN: float = 8.0  # Gap kept between a fireball spawn point and a wall or ceiling
 const FIREBALL_MIN_SPAWN_DISTANCE: float = 14.0  # Closer to the boss than this, a blocked fireball is skipped
 const DASH_MARKER_COLOR := Color(1, 1, 1, 0.8)
+const FLAME_WALL_MAX_FLAMES: int = 4  # Hard cap: a 5th flame would make the column unjumpable
+const FLAME_WALL_RAY_LENGTH: float = 2000.0  # How far a wall is searched for from the player
+const FLAME_WALL_FLOOR_RAY_LENGTH: float = 400.0
+const FLAME_WALL_MIN_PLAYER_DISTANCE: float = 32.0  # A column closer to the player than this is skipped
 var phase_flash_timer: float = 0.0
 var _dash_marker_visible: bool = false
+
+# Flame Wall waves still to cast in the current intangible window, and the time until the next one
+var _wall_waves_left: int = 0
+var _wall_timer: float = 0.0
+var flame_wall_scene: PackedScene = null
 
 # Layer captured at _ready so intangibility can be undone exactly
 var _body_layer: int = 0
@@ -166,12 +245,21 @@ func _ready() -> void:
 		if bounce_projectile_scene == null:
 			print_debug("[Phantoon] WARNING: Could not load bouncing_fireball.tscn")
 
+	# The flame wall uses a wider variant of the burst flame; the plain one is the fallback
+	flame_wall_scene = load("res://Scenes/Projectiles/flame_wall_projectile.tscn")
+	if flame_wall_scene == null:
+		print_debug("[Phantoon] WARNING: Could not load flame_wall_projectile.tscn")
+
+	if test_start_phase >= 2 and not phase_2_triggered:
+		enter_phase_2()
+
 
 func _physics_process(delta: float) -> void:
 	# Handle death animation
 	if is_dying:
 		death_timer += delta
 		if death_timer >= death_duration:
+			defeated.emit()
 			queue_free()
 			return
 	else:
@@ -299,7 +387,7 @@ func update_attack_windup_state(delta: float) -> void:
 
 
 # ============================================================================
-# Intangibility (overlay; defensive: orbits only, no attacks)
+# Intangibility (overlay; defensive: orbits and casts the Flame Wall, no normal attacks)
 # ============================================================================
 
 ## True while the boss is flickering before phasing out or is phased out. Attacks don't start then.
@@ -315,6 +403,8 @@ func _update_intangibility(delta: float) -> void:
 		intangible_state_timer += delta
 		if intangible_state_timer >= intangible_duration:
 			exit_intangible_state()
+			return
+		_update_flame_wall(delta)
 		return
 
 	if intangible_warning_timer > 0.0:
@@ -325,11 +415,15 @@ func _update_intangibility(delta: float) -> void:
 
 	# The interval only counts tangible time. Phasing waits for ORBIT so it never cuts an attack off.
 	intangible_timer += delta
-	if intangible_timer >= intangible_interval and current_state == BossState.ORBIT:
+	if intangible_timer >= _current_intangible_interval() and current_state == BossState.ORBIT:
 		if intangible_warning_duration > 0.0:
 			intangible_warning_timer = intangible_warning_duration
 		else:
 			enter_intangible_state()
+
+
+func _current_intangible_interval() -> float:
+	return test_intangible_interval if test_loop_intangibility else intangible_interval
 
 
 func enter_intangible_state() -> void:
@@ -339,6 +433,9 @@ func enter_intangible_state() -> void:
 	intangible_state_timer = 0.0
 	intangible_warning_timer = 0.0
 	_set_phased(true)
+	if enable_flame_wall:
+		_wall_waves_left = 1 if phase == 1 else 2
+		_wall_timer = wall_cast_delay
 
 
 func exit_intangible_state() -> void:
@@ -347,6 +444,7 @@ func exit_intangible_state() -> void:
 	is_intangible = false
 	intangible_state_timer = 0.0
 	intangible_timer = 0.0  # Next phase-out is a full interval away
+	_wall_waves_left = 0
 	_set_phased(false)
 
 
@@ -360,6 +458,107 @@ func _set_phased(phased: bool) -> void:
 	if contact_damage:
 		contact_damage.set_deferred("monitoring", not phased)
 		contact_damage.set_deferred("monitorable", not phased)
+
+
+# ============================================================================
+# Flame Wall (cast during the intangible overlay)
+# ============================================================================
+
+func _update_flame_wall(delta: float) -> void:
+	if _wall_waves_left <= 0:
+		return
+	_wall_timer -= delta
+	if _wall_timer > 0.0:
+		return
+	_spawn_flame_wall()
+	_wall_waves_left -= 1
+	_wall_timer = wall_wave_gap
+
+
+## World-layer ray. It also reports geometry the ray starts inside of, so nothing spawns in a wall.
+func _world_ray(from: Vector2, to: Vector2) -> Dictionary:
+	var query := PhysicsRayQueryParameters2D.create(from, to, 1)  # World layer
+	query.hit_from_inside = true
+	return get_world_2d().direct_space_state.intersect_ray(query)
+
+
+## Spawns one column of flames at a random valid wall, all launching on the same frame towards the
+## player's side. The wave is skipped (never shrunk or placed inside geometry) if no side is valid.
+func _spawn_flame_wall() -> void:
+	var player := get_tree().get_first_node_in_group("player") as Node2D
+	var scene := flame_wall_scene if flame_wall_scene != null else radial_projectile_scene
+	if player == null or scene == null:
+		return
+
+	var count := clampi(wall_flame_count, 1, FLAME_WALL_MAX_FLAMES)
+	var origin := player.global_position
+
+	# The floor under the player is where the lowest flame rests
+	var floor_hit := _world_ray(origin, origin + Vector2.DOWN * FLAME_WALL_FLOOR_RAY_LENGTH)
+	if floor_hit.is_empty():
+		if debug_enabled:
+			print_debug("[Phantoon] Flame wall skipped: no floor under the player")
+		return
+	var floor_y: float = floor_hit.position.y
+
+	var columns: Dictionary = {}  # side (-1.0 = left wall, 1.0 = right wall) -> column x
+	for side: float in [-1.0, 1.0]:
+		var side_name := "left" if side < 0.0 else "right"
+		var wall_hit := _world_ray(origin, origin + Vector2(side * FLAME_WALL_RAY_LENGTH, 0.0))
+		if wall_hit.is_empty():
+			_debug_wall_side(side_name, "no wall found")
+			continue
+		var column_x: float = wall_hit.position.x - side * wall_spawn_margin
+		if (column_x - origin.x) * side < FLAME_WALL_MIN_PLAYER_DISTANCE:
+			_debug_wall_side(side_name, "player too close to the wall")
+			continue
+		var blocked_by := _flame_lane_blocker(column_x, origin.x, floor_y, count)
+		if blocked_by != "":
+			_debug_wall_side(side_name, blocked_by)
+			continue
+		columns[side] = column_x
+
+	if columns.is_empty():
+		if debug_enabled:
+			print_debug("[Phantoon] Flame wall skipped: no clear side")
+		return
+
+	var chosen_side: float = columns.keys().pick_random()
+	var chosen_x: float = columns[chosen_side]
+	var travel := Vector2(-chosen_side, 0.0)  # Flames fly away from their wall
+
+	for i in range(count):
+		var flame := scene.instantiate() as RadialProjectile
+		get_parent().add_child(flame)
+		flame.global_position = Vector2(chosen_x, floor_y - wall_flame_spacing * (i + 0.5))
+		# Same hold for every flame, so the whole column launches together
+		flame.launch(travel, wall_speed, self, wall_hold_duration, wall_lifetime)
+
+
+## Empty if the full column fits at `column_x` (enough headroom above the floor) and nothing blocks
+## any flame's path to the player's x, so no flame starts or fades inside geometry. Otherwise says
+## what is in the way.
+func _flame_lane_blocker(column_x: float, player_x: float, floor_y: float, count: int) -> String:
+	var column_top := floor_y - count * wall_flame_spacing
+	var headroom := _world_ray(Vector2(column_x, floor_y - 1.0), Vector2(column_x, column_top))
+	if not headroom.is_empty():
+		return "no headroom for the column (hit %s)" % _blocker_name(headroom)
+	for i in range(count):
+		var y := floor_y - wall_flame_spacing * (i + 0.5)
+		var lane := _world_ray(Vector2(column_x, y), Vector2(player_x, y))
+		if not lane.is_empty():
+			return "flame %d blocked on the way to the player (hit %s)" % [i, _blocker_name(lane)]
+	return ""
+
+
+func _blocker_name(hit: Dictionary) -> String:
+	var collider = hit.get("collider")
+	return str(collider.get_path()) if collider is Node else "unknown"
+
+
+func _debug_wall_side(side_name: String, reason: String) -> void:
+	if debug_enabled:
+		print_debug("[Phantoon] Flame wall: %s side rejected: %s" % [side_name, reason])
 
 
 # ============================================================================
@@ -533,6 +732,7 @@ func _on_health_died() -> void:
 	is_dying = true
 	is_intangible = false
 	intangible_warning_timer = 0.0
+	_wall_waves_left = 0
 	current_state = BossState.DEAD
 	death_timer = 0.0
 

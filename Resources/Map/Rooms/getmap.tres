@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="MapRoomData" format=3]
+
+[ext_resource type="Script" uid="uid://dmluw87r61h2k" path="res://Scripts/Levels/map_room_data.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://cmy8l4t16w75j" path="res://Resources/Map/Icons/tile_plain.tres" id="2_plain"]
+
+[resource]
+script = ExtResource("1_script")
+level_id = &"wrecked_ship"
+room_id = &"getmap"
+map_position = Vector2i(0, -1)
+icons = Array[Texture2D]([ExtResource("2_plain")])

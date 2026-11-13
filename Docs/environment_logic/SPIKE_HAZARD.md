@@ -14,7 +14,7 @@ in a level; touching it damages the player through the player's existing
 ## What it does
 
 On `body_entered`, if the body has a `take_damage` method, the hazard calls
-`take_damage(damage, null)`. It adds no health, knockback or invulnerability
+`take_damage(damage, null)`, and keeps calling it every physics frame while the body stays inside. It adds no health, knockback or invulnerability
 logic of its own — all of that comes from `player_rundas.gd`:
 
 - `invulnerable` / `invulnerability_time` (0.8 s) blocks repeat hits.
@@ -41,15 +41,17 @@ layer is in the mask, so nothing else can reach this check.
 
 ## Repeated damage
 
-The hazard only reacts to `body_entered`, which fires once per entry, so it
-never damages every physics frame. The player's invulnerability frames cover
-quick re-entries. No cooldown is added in the hazard.
+The hazard tracks which bodies are inside it (`body_entered` /
+`body_exited`). While one is inside, it calls `take_damage()` every physics
+frame. The player's `take_damage()` ignores the call during invulnerability
+frames (0.8 s), so a player who keeps standing in the spikes is hurt again as
+soon as the invulnerability ends. Physics processing is only enabled while
+something is inside, and the hazard has no cooldown of its own.
 
-Known limitation: if the player enters while invulnerable (for example right
-after an enemy hit), that entry is ignored by `take_damage()`. The player
-takes no damage from the spikes until they leave and re-enter. If this ever
-feels wrong, the fix would be to re-check overlapping bodies when
-`invulnerable` turns false.
+This also covers entering while already invulnerable (for example right after
+an enemy hit): the player is hurt once the invulnerability runs out, without
+having to leave and re-enter. One large hazard zone is enough; there is no
+need to place many small copies.
 
 ## Exports
 

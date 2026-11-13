@@ -3,7 +3,7 @@
 Script: `Scripts/Enemies/phantoon.gd`
 Scene: `Scenes/Enemies/phantoon.tscn`
 
-Phantoon is an orbiting boss that alternates between circling an arena center point, dashing to a new position, and firing one of two attacks. It has two health-based phases and a periodic defensive intangibility window.
+Phantoon is an orbiting boss that alternates between circling an arena center point, dashing to a new position, and firing one of two attacks. It has two health-based phases and a periodic intangibility window, during which it casts a Flame Wall.
 
 The eye is the weak zone: the `Hurtbox` is a deliberately small 5px circle, so the player has to aim at it. `ContactDamage` still covers the whole body.
 
@@ -19,7 +19,7 @@ The eye is the weak zone: the `Hurtbox` is a deliberately small 5px circle, so t
 | `ATTACK_BOUNCE` | Bouncing fireball attack is in-flight; boss holds position. |
 | `DEAD` | Boss is fading out and about to `queue_free()`. |
 
-Intangibility is **not a state**. It is an overlay flag (`is_intangible`) that only ever happens during `ORBIT`. See [Intangibility](#intangibility).
+Intangibility is **not a state**. It is an overlay flag (`is_intangible`) that only ever happens during `ORBIT`. The Flame Wall is cast from that overlay and is **not** a `BossState` or an `AttackType`. See [Intangibility](#intangibility) and [Flame Wall](#flame-wall).
 
 ## State machine flow
 
@@ -63,17 +63,18 @@ In Phase 2 (`enter_phase_2()`), `orbit_speed` is multiplied by 1.5, `pause_durat
 
 ## Intangibility
 
-A defensive behavior: the boss phases out and keeps orbiting, but never attacks while doing so.
+A defensive behavior: the boss phases out and keeps orbiting. It can't be damaged and doesn't use its normal attacks (burst, bounce) while phased. The one exception is the [Flame Wall](#flame-wall), cast during the window.
 
 - **Scheduling:** `intangible_timer` only counts tangible time. Once it reaches `intangible_interval` (15s) **and** the boss is in `ORBIT`, it starts. If the boss is mid-pause, dash or attack, it waits, so it never cuts an attack off.
 - **Warning:** the sprite flickers for `intangible_warning_duration` (0.5s) before phasing out.
-- **Attack hold:** while flickering or intangible, the `ORBIT` → `PAUSE` timer is frozen. The boss only orbits.
+- **Attack hold:** while flickering or intangible, the `ORBIT` → `PAUSE` timer is frozen. The boss only orbits (and casts the Flame Wall). The attack timer keeps the value it had, so after the window ends the normal cycle continues from there.
 - **Phased out (`is_intangible`):** lasts `intangible_duration` (3s). `_set_phased(true)` (deferred) does the following:
   - `Hurtbox.monitorable` and `monitoring` are switched off. `monitorable` is the important one: projectiles find the hurtbox by overlapping it, so bullets and missiles pass straight through instead of being consumed. Missile explosion queries skip it too.
   - `ContactDamage.monitoring` and `monitorable` are switched off, so the player takes no contact damage and passes through.
   - `collision_layer` is set to 0.
   - The sprite alpha becomes `intangible_fade_amount` (0.5).
-- **Exit:** `_set_phased(false)` restores everything, and `intangible_timer` resets to 0, so the next phase-out is a full interval away.
+  - If `enable_flame_wall` is on, `_wall_waves_left` and `_wall_timer` are set up (see [Flame Wall](#flame-wall)).
+- **Exit:** `_set_phased(false)` restores everything, `_wall_waves_left` is reset to 0 (nothing spawns after the window), and `intangible_timer` resets to 0, so the next phase-out is a full interval away.
 - `take_damage()` also returns early while intangible, as a backstop.
 
 ## Dash
@@ -102,7 +103,7 @@ In `ATTACK_WINDUP` the boss holds still for `attack_telegraph_duration` (0.4s) w
 - **Phase 1:** `burst_projectile_count` (6) `RadialProjectile` instances in an evenly spaced ring, offset by `phase_1_burst_rotation` (0, so the first one points right).
 - **Phase 2:** `phase_2_burst_count` (8) projectiles, one every 45°. `phase_2_burst_rotation` is -90° (`-PI / 2`), so the first projectile points straight up (0°) and the rest follow every 45° around the ring.
 - The angle step is `TAU / count`, so the ring stays even if you change the count.
-- **Held ring, launched together:** after the yellow windup glow, the whole ring spawns at once, held in place and already pointing outward, so the player can see where each projectile will come from. After `burst_hold_duration` (0.5s) **every projectile launches at the same moment**, with no order. `launch(dir, speed, source, delay)` carries the delay (the same for all), and `launch_delay` counts down in the projectile's `_physics_process`, which skips movement and the lifetime timer until it reaches 0.
+- **Held ring, launched together:** after the yellow windup glow, the whole ring spawns at once, held in place and already pointing outward, so the player can see where each projectile will come from. After `burst_hold_duration` (0.5s) **every projectile launches at the same moment**, with no order. `launch(dir, speed, source, delay, lifetime)` carries the delay (the same for all) and the optional flight time (default `LIFETIME`, 2.0s, which keeps the burst unchanged), and `launch_delay` counts down in the projectile's `_physics_process`, which skips movement and the lifetime timer until it reaches 0.
 - **Live while held:** a hovering projectile is fully active. It can hurt the player and be shot down for a drop. Only its flight is delayed.
 - `ATTACK_BURST` normally lasts 1.0s. If the hold is longer than 0.7s (`burst_hold_duration + 0.3`), the state lasts that long instead, so the boss stays still until the ring has launched.
 - Each projectile spawns at `global_position + direction * burst_spawn_offset` (24px outside the boss's own body by default) so it doesn't visually spawn inside the boss sprite.
@@ -139,6 +140,72 @@ Both `RadialProjectile` and `BouncingFireball` have a `drop_table` export and a 
 - If `drop_table` is empty, `_ready` creates a default `DropTable` with `drop_chance = DEFAULT_DROP_CHANCE` (0.2). That's lower than the enemy default (0.7) since up to 6 projectiles spawn at once.
 - Health vs missile weights are the `DropTable` defaults. Missile refills only drop once the player has missiles unlocked, as for other enemies.
 
+## Flame Wall
+
+The boss's one action while phased out. A vertical column of flames appears at the left or right wall of the room and flies along the floor towards the player, who has to **jump over it**. It is not a `BossState` and is not in `AttackType` or the attack sequences: intangibility stays an overlay on `ORBIT`, and the boss is still undamageable and doesn't use its normal attacks while phased.
+
+### Jump-height constraint
+
+The column is `wall_flame_count` flames (default 4, hard cap `FLAME_WALL_MAX_FLAMES` = 4, also enforced in code if the export is changed) spaced `wall_flame_spacing` (16px) apart, so it is exactly `count * spacing` = 64px tall (4 tiles). Flame `i` is at `y = floor_y - spacing * (i + 0.5)`, so the lowest flame sits flush on the floor. The column is never shrunk to fit: if it doesn't fit, the wave is skipped.
+
+> Note: with the current player values (`jump_velocity` -320, `jump_gravity` 750) a full jump peaks at about 68px (about 4.3 tiles; a spin jump about 79px), not 5 to 6 tiles. A 4-flame column leaves little margin at the default speed, so check it in play (see the testing exports) and lower `wall_flame_count` or raise `wall_speed` if it feels unfair.
+
+### Scheduling
+
+- `enter_intangible_state()`: if `enable_flame_wall`, `_wall_waves_left = 1` in phase 1 or `2` in phase 2, and `_wall_timer = wall_cast_delay` (0.8s).
+- `_update_intangibility()` (intangible branch, after the duration check, so nothing spawns on the frame the window ends) calls `_update_flame_wall(delta)`. When `_wall_timer` reaches 0 and waves remain, it calls `_spawn_flame_wall()`, decrements `_wall_waves_left` and sets `_wall_timer = wall_wave_gap` (0.7s). A skipped wave still counts as cast.
+- `exit_intangible_state()` and `_on_health_died()` set `_wall_waves_left = 0`.
+- **Phase 1:** one column per window. **Phase 2:** two columns about `wall_wave_gap` (0.7s) apart; each wave picks its own random side.
+- `wall_waves` is not an export: it is derived from `phase` when the window starts.
+
+### Spawning (`_spawn_flame_wall`)
+
+All rays use the World layer (mask 1) and report geometry they start inside of (`hit_from_inside`), so nothing spawns in a wall.
+
+1. Find the player (`player` group). Return if there is none.
+2. Ray **down** from the player to find `floor_y`. No floor means the wave is skipped.
+3. For each side, ray **left/right** from the player to find the wall. A side is **invalid** if:
+   - the ray finds no wall;
+   - the column (`wall_x ∓ wall_spawn_margin`) is less than `FLAME_WALL_MIN_PLAYER_DISTANCE` (32px) from the player;
+   - there is less than `count * spacing` of free headroom above the floor at the column x (ray up);
+   - any flame's row is blocked between the column and the player (one horizontal ray per flame, e.g. a pillar).
+4. Pick randomly among the valid sides. If none is valid, the wave is skipped. With `debug_enabled`, every rejected side prints why, including the node it hit (for example a closed room gate).
+   - `wall_spawn_margin` (24px) has to clear anything that sticks out of the wall. A closed `RoomGate` reaches about 13px into the room, and with the old 12px margin the left column in `Room_ToBoss` sat inside the gate, so that side was always rejected.
+5. Instantiate `Scenes/Projectiles/flame_wall_projectile.tscn` (falls back to `radial_projectile_scene`) for each flame, add it, set `global_position`, and call `launch(Vector2(±1, 0), wall_speed, self, wall_hold_duration, wall_lifetime)`. Left wall flies +X, right wall flies -X.
+
+### Telegraph and simultaneous launch
+
+The existing hover mechanic is reused: every flame gets the same `launch_delay` (`wall_hold_duration`, 0.6s), so the column hovers pointing along its travel direction, then **every flame launches on the same frame**. Hovering flames are live (they can hurt and be shot down).
+
+### Flame behaviour
+
+Flames are `RadialProjectile`s, so everything in [Projectile drops](#projectile-drops) and [Projectiles ignore each other](#projectiles-ignore-each-other) applies: they can be shot down (with the usual drop), don't damage or fade each other or Phantoon, and fade on walls.
+
+`flame_wall_projectile.tscn` inherits `radial_projectile.tscn` and only scales the sprite 2x across its width. The burst flame art is 8px wide and the column pitch is 16px, so unscaled flames would leave 8px visual gaps (the 16px-diameter hitbox is already solid). The art faces its direction of travel because `RadialProjectile` rotates by `direction.angle() - PI/2`, so no extra flip is needed; the burst scene is unchanged.
+
+### Timing (defaults)
+
+Window = 3.0s (`intangible_duration`), starting at the end of the 0.5s warning.
+
+| Event | Phase 1 | Phase 2 |
+|---|---|---|
+| Wave 1 spawns (hovers) | 0.8s | 0.8s |
+| Wave 1 launches | 1.4s | 1.4s |
+| Wave 2 spawns | - | 0.8 + 0.7 = 1.5s |
+| Wave 2 launches | - | 2.1s |
+| Window ends | 3.0s | 3.0s |
+
+Both waves spawn and launch inside the window. A 256px room takes about 1.6s to cross at 140 px/s, so the last flames can still be flying for up to about 0.9s after the boss re-solidifies; they fade on the far wall (`wall_lifetime` 4s only caps flames that never hit anything). The next normal attack can't spawn that soon: after the window the attack timer resumes, and the shortest path to an attack is pause + dash + windup (0.75 + 0.4 + 0.4 = about 1.55s in phase 2; 1.15s with the dash disabled). So Flame Wall flames and normal attacks don't overlap.
+
+### Testing exports
+
+Under the `Testing` category (all off by default):
+
+- `test_loop_intangibility` / `test_intangible_interval` (1.0s): phase out again every `test_intangible_interval` seconds of tangible time instead of `intangible_interval`.
+- `test_start_phase`: 0 = normal, 1 or 2 starts the fight in that phase (2 applies the phase 2 changes at spawn, so the two-wave rule can be checked without damaging the boss).
+
+For isolated testing, also turn off `enable_burst_attack` and `enable_bounce_attack`.
+
 ## Phases
 
 - **Phase 1:** default values, attack sequence burst, burst, bounce.
@@ -161,7 +228,7 @@ Both `RadialProjectile` and `BouncingFireball` have a `drop_table` export and a 
   - They stay for `death_drop_lifetime` (20s) instead of the default 8s, since there are 20 of them to collect.
   - The old `drop_table` export no longer exists on the boss.
   - Missile refills are ignored by the player while missiles are locked. They are still spawned, and despawn on their timer.
-- On death (`HealthComponent.died` signal), the boss clears intangibility and disables all its `CollisionShape2D`/`CollisionPolygon2D` children. `Area2D` children stop monitoring and become non-monitorable, so projectiles stop being consumed. It then fades its sprite out over `death_duration` (0.5s) and `queue_free()`s.
+- On death (`HealthComponent.died` signal), the boss clears intangibility and disables all its `CollisionShape2D`/`CollisionPolygon2D` children. `Area2D` children stop monitoring and become non-monitorable, so projectiles stop being consumed. It then fades its sprite out over `death_duration` (0.5s), emits `defeated` and `queue_free()`s. `defeated` fires just before the node frees itself, after the fade; the boss door's `BossEncounter` listens to it (not to `tree_exiting`, which also fires when the level reloads). See `environment_logic/BOSS_ENCOUNTER.md`. In `demo_wrecked_ship_3` the boss has `save_id = "boss_phantoon"`.
 
 ## Feature toggles (for testing)
 
@@ -170,9 +237,23 @@ All default to `true`, meant to be disabled individually for isolated testing:
 - `enable_dash` — if `false`, the boss skips the dash and attacks immediately from its current orbit position after the pause.
 - `enable_burst_attack` — if `false`, only bounce attacks are ever chosen.
 - `enable_bounce_attack` — if `false`, only burst attacks are ever chosen.
-- `enable_intangibility` — if `false`, the boss never becomes intangible.
+- `enable_intangibility` — if `false`, the boss never becomes intangible (so no Flame Wall either).
+- `enable_flame_wall` — if `false`, intangibility behaves exactly as before: the boss only orbits while phased. (Lives in the `Flame Wall` export category.)
 
 ## Other exports
+
+The inspector is split into categories, with sub-groups inside the bigger ones. All of them are declared together at the top of `phantoon.gd`:
+
+| Category | Groups / contents |
+|---|---|
+| General | `debug_enabled`, `save_id`, `max_health`, `contact_damage_value` |
+| Feature Toggles | `enable_dash`, `enable_burst_attack`, `enable_bounce_attack`, `enable_intangibility` |
+| Movement | Orbit, Dash |
+| Attacks | Windup, Radial Burst, Bouncing Fireballs |
+| Intangibility | one flat list |
+| Flame Wall | `enable_flame_wall`, then Column, Timing, Flight |
+| Death Drops | one flat list |
+| Testing | Flame Wall / phase test helpers |
 
 | Export | Default |
 |---|---|
@@ -196,3 +277,20 @@ All default to `true`, meant to be disabled individually for isolated testing:
 | `intangible_duration` | 3.0 |
 | `intangible_warning_duration` | 0.5 |
 | `intangible_fade_amount` | 0.5 |
+
+## Flame Wall exports
+
+| Export | Default |
+|---|---|
+| `enable_flame_wall` | true |
+| `wall_flame_count` | 4 (range 1 to 4) |
+| `wall_flame_spacing` | 16.0 |
+| `wall_speed` | 140.0 |
+| `wall_hold_duration` | 0.6 |
+| `wall_cast_delay` | 0.8 |
+| `wall_wave_gap` | 0.7 |
+| `wall_spawn_margin` | 24.0 |
+| `wall_lifetime` | 4.0 |
+| `test_loop_intangibility` | false |
+| `test_intangible_interval` | 1.0 |
+| `test_start_phase` | 0 |

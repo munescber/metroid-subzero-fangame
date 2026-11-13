@@ -15,6 +15,8 @@ class_name RoomCamera
 
 signal transition_started(from_cell: Vector2i, to_cell: Vector2i)
 signal transition_finished(cell: Vector2i)
+## SMOOTH_FOLLOW only: current_cell changed inside the region, without a slide.
+signal cell_changed(cell: Vector2i)
 
 ## Path to the node whose position decides which region is active.
 @export var player_path: NodePath = ^"../player_rundas"
@@ -162,7 +164,9 @@ func _clamped_follow_position(region: RoomRegion, target: Vector2) -> Vector2:
 func _follow_player(delta: float) -> void:
 	var player_cell := Vector2i(((player.global_position - room_origin) / screen_size).floor())
 	if _cell_regions.get(player_cell) == current_region:
-		current_cell = player_cell
+		if player_cell != current_cell:
+			current_cell = player_cell
+			cell_changed.emit(current_cell)
 	var target := _clamped_follow_position(current_region, player.global_position)
 	if follow_catch_up_speed > 0.0:
 		target = global_position.lerp(target, 1.0 - exp(-follow_catch_up_speed * delta))

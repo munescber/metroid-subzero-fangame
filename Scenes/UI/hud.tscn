@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://bl5a5h58kkgws"]
 
 [ext_resource type="Script" uid="uid://cpoi1glq6xade" path="res://Scripts/UI/hud.gd" id="1_hud"]
+[ext_resource type="PackedScene" path="res://Scenes/UI/minimap.tscn" id="2_minimap"]
 
 [node name="HUD" type="CanvasLayer" unique_id=1259202812]
 layer = 10
@@ -62,3 +63,6 @@ custom_minimum_size = Vector2(0, 5)
 layout_mode = 2
 max_value = 50.0
 show_percentage = false
+
+[node name="Minimap" parent="." instance=ExtResource("2_minimap")]
+layout_mode = 3

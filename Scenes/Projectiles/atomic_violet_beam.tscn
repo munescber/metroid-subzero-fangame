@@ -1,0 +1,140 @@
+[gd_scene format=3 uid="uid://daxiuvxppd5v3"]
+
+[ext_resource type="Texture2D" uid="uid://b3ycbj4ce1crh" path="res://Spritesheets/atomic_violet_beam.png" id="1_sheet"]
+[ext_resource type="Script" uid="uid://ds2ylikkojxl8" path="res://Scripts/Projectiles/atomic_violet_beam.gd" id="2_script"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_7gykf"]
+atlas = ExtResource("1_sheet")
+region = Rect2(0, 32, 16, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_0ca4f"]
+atlas = ExtResource("1_sheet")
+region = Rect2(16, 32, 16, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_cu0ji"]
+atlas = ExtResource("1_sheet")
+region = Rect2(32, 32, 16, 32)
+
+[sub_resource type="AtlasTexture" id="Fly0"]
+atlas = ExtResource("1_sheet")
+region = Rect2(0, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="Fly1"]
+atlas = ExtResource("1_sheet")
+region = Rect2(16, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="Fly2"]
+atlas = ExtResource("1_sheet")
+region = Rect2(32, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="Fly3"]
+atlas = ExtResource("1_sheet")
+region = Rect2(48, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="Fly4"]
+atlas = ExtResource("1_sheet")
+region = Rect2(0, 16, 16, 16)
+
+[sub_resource type="AtlasTexture" id="Fly5"]
+atlas = ExtResource("1_sheet")
+region = Rect2(16, 16, 16, 16)
+
+[sub_resource type="AtlasTexture" id="Fly6"]
+atlas = ExtResource("1_sheet")
+region = Rect2(32, 16, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ssrjl"]
+atlas = ExtResource("1_sheet")
+region = Rect2(0, 64, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_18n88"]
+atlas = ExtResource("1_sheet")
+region = Rect2(16, 64, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_aatmy"]
+atlas = ExtResource("1_sheet")
+region = Rect2(32, 64, 16, 16)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_beam"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_7gykf")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_0ca4f")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_cu0ji")
+}],
+"loop": 1,
+"name": &"fly",
+"speed": 8.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("Fly0")
+}, {
+"duration": 1.0,
+"texture": SubResource("Fly1")
+}, {
+"duration": 1.0,
+"texture": SubResource("Fly2")
+}, {
+"duration": 1.0,
+"texture": SubResource("Fly3")
+}, {
+"duration": 1.0,
+"texture": SubResource("Fly4")
+}, {
+"duration": 1.0,
+"texture": SubResource("Fly5")
+}, {
+"duration": 1.0,
+"texture": SubResource("Fly6")
+}],
+"loop": 1,
+"name": &"fly_t",
+"speed": 12.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ssrjl")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_18n88")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_aatmy")
+}],
+"loop": 0,
+"name": &"impact",
+"speed": 12.0
+}]
+
+[sub_resource type="RectangleShape2D" id="BodyShape"]
+size = Vector2(5, 19)
+
+[sub_resource type="RectangleShape2D" id="HitboxShape"]
+size = Vector2(5, 19)
+
+[node name="AtomicVioletBeam" type="CharacterBody2D" unique_id=759336710]
+collision_layer = 8
+script = ExtResource("2_script")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=168236775]
+sprite_frames = SubResource("SpriteFrames_beam")
+animation = &"fly"
+frame_progress = 0.86853075
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1537439377]
+position = Vector2(-0.5, -0.5)
+shape = SubResource("BodyShape")
+
+[node name="Hitbox" type="Area2D" parent="." unique_id=1260722922]
+collision_layer = 8
+collision_mask = 16
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox" unique_id=1093380105]
+position = Vector2(-0.5, -0.5)
+shape = SubResource("HitboxShape")

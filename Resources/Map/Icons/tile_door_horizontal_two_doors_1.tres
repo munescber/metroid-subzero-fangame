@@ -1,0 +1,7 @@
+[gd_resource type="AtlasTexture" format=3 uid="uid://dwrvby44uqo33"]
+
+[ext_resource type="Texture2D" uid="uid://j4g7xplb7klh" path="res://Tilesets/Maps/wrecked_ship_map_tiles.png" id="1_jt7me"]
+
+[resource]
+atlas = ExtResource("1_jt7me")
+region = Rect2(56, 8, 8, 8)

@@ -8,6 +8,22 @@
 atlas = ExtResource("2_sheet")
 region = Rect2(0, 0, 16, 48)
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_g3"]
+atlas = ExtResource("2_sheet")
+region = Rect2(48, 48, 16, 48)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_g2"]
+atlas = ExtResource("2_sheet")
+region = Rect2(32, 48, 16, 48)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_g1"]
+atlas = ExtResource("2_sheet")
+region = Rect2(16, 48, 16, 48)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_g0"]
+atlas = ExtResource("2_sheet")
+region = Rect2(0, 48, 16, 48)
+
 [sub_resource type="AtlasTexture" id="AtlasTexture_f1"]
 atlas = ExtResource("2_sheet")
 region = Rect2(16, 0, 16, 48)
@@ -20,9 +36,9 @@ region = Rect2(32, 0, 16, 48)
 atlas = ExtResource("2_sheet")
 region = Rect2(48, 0, 16, 48)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_empty"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_7qra7"]
 atlas = ExtResource("2_sheet")
-region = Rect2(0, 48, 16, 48)
+region = Rect2(64, 0, 16, 48)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_gate"]
 animations = [{
@@ -32,6 +48,34 @@ animations = [{
 }],
 "loop": 1,
 "name": &"idle",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": null
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_g3")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_g2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_g1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_g0")
+}],
+"loop": 0,
+"name": &"lock",
+"speed": 10.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_g0")
+}],
+"loop": 1,
+"name": &"locked",
 "speed": 5.0
 }, {
 "frames": [{
@@ -48,10 +92,30 @@ animations = [{
 "texture": SubResource("AtlasTexture_f3")
 }, {
 "duration": 1.0,
-"texture": SubResource("AtlasTexture_empty")
+"texture": SubResource("AtlasTexture_7qra7")
 }],
 "loop": 0,
 "name": &"open",
+"speed": 10.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_g0")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_g1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_g2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_g3")
+}, {
+"duration": 1.0,
+"texture": null
+}],
+"loop": 0,
+"name": &"unlock",
 "speed": 10.0
 }]
 
@@ -59,7 +123,7 @@ animations = [{
 size = Vector2(12, 48)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hurtbox"]
-size = Vector2(16, 52)
+size = Vector2(14, 50)
 
 [node name="RoomGate" type="StaticBody2D" unique_id=1539784486]
 script = ExtResource("1_script")

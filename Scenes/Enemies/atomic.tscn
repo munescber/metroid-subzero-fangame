@@ -2,6 +2,7 @@
 
 [ext_resource type="Texture2D" uid="uid://de54jh6mlvqfh" path="res://Spritesheets/spritesheet_atomic.png" id="1_tkdwp"]
 [ext_resource type="Texture2D" uid="uid://3b3uqbpqcjvm" path="res://Spritesheets/spritesheet_atomic_field.png" id="2_field"]
+[ext_resource type="AudioStream" uid="uid://b1rfp0u8x6kim" path="res://Audio/SFX/Player/charge_beam.wav" id="2_y2l4w"]
 [ext_resource type="Script" uid="uid://dis5epw6hpsgu" path="res://Scripts/Common/hitbox.gd" id="4_hitbox"]
 [ext_resource type="Script" uid="uid://c3c0xff4hp2wj" path="res://Scripts/Common/health_component.gd" id="5_health"]
 [ext_resource type="Script" uid="uid://cjlps8ugi1jdq" path="res://Scripts/Common/hurtbox.gd" id="6_hurtbox"]
@@ -114,6 +115,8 @@ radius = 8.0
 script = ExtResource("8_script")
 electric_field_duration = 1.0
 electric_field_damage = 10
+sfx_charge_loop = ExtResource("2_y2l4w")
+sfx_electric_field_loop = ExtResource("2_y2l4w")
 
 [node name="Visuals" type="Node2D" parent="." unique_id=-1038779644]
 
